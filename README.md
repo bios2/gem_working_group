@@ -17,11 +17,6 @@ A second goal is to document how AI coding agents can support collaborative ecol
 
 ## Resources and documentation
 
-SharePoint documents : https://usherbrooke.sharepoint.com/sites/ielabworkinggroup
-
-Teams for chat groups : https://teams.microsoft.com/l/team/19%3A5UwBzgYI52ESK9znTZVksNqlEEprrzf8AeMWIcRYWpU1%40thread.tacv2/conversations?groupId=f8341ee7-d260-4f7a-9890-6f13bbc5ec80&tenantId=3a5a8744-5935-45f9-9423-b32c3a5de082
- -->
-
 [📂 SharePoint Documents](https://usherbrooke.sharepoint.com/sites/ielabworkinggroup)
 
 [💬 Teams Chat](https://teams.microsoft.com/l/team/19%3A5UwBzgYI52ESK9znTZVksNqlEEprrzf8AeMWIcRYWpU1%40thread.tacv2/conversations?groupId=f8341ee7-d260-4f7a-9890-6f13bbc5ec80&tenantId=3a5a8744-5935-45f9-9423-b32c3a5de082)
