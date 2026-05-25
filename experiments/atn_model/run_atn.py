@@ -13,6 +13,7 @@ import numpy as np  # numerical arrays and math
 import pandas as pd  # data frame handling
 import sys  # system utilities (exit codes)
 from pathlib import Path  # cross-platform path handling
+from datetime import datetime  # timestamp for output folder name
 # Import custom modules from this project
 from atn_io import (
     read_env_matrix, read_adjacency_matrix, read_traits,  # I/O functions
@@ -23,17 +24,15 @@ from atn_model import ATNModel  # the ODE model
 from config import CONFIG  # default parameters
 
 def main(env_file: str, adj_file: str, traits_file: str,
-         t_max: float = 100.0,
-         output_dir: str = './atn_output'):
+         t_max: float = 100.0):
     """
     Run the ATN model with full validation.
 
     Parameters:
-        env_file: path to env_mat.txt (environment: temperature, carrying capacity)
+        env_file: path to env_mat.txt (environment: row, col, temperature, carrying capacity)
         adj_file: path to adj_mat.txt (adjacency matrix: food web links)
         traits_file: path to traits.txt (species traits: body mass, initial biomass)
         t_max: simulation end time (days); one output point is saved per day
-        output_dir: directory to save results
     """
     
     # Print header banner
@@ -100,14 +99,109 @@ def main(env_file: str, adj_file: str, traits_file: str,
         B_traj = model.run_all_cells(B_initial, t_eval)
         
         # ===== STEP 7: SAVE RESULTS =====
-        print(f"\n[STEP 6] Saving results to {output_dir}...")
-        # Create output directory if it doesn't exist
-        Path(output_dir).mkdir(exist_ok=True)
-        
-        # Save biomass trajectory as NumPy binary file (efficient storage)
-        np.save(f"{output_dir}/biomass_trajectory.npy", B_traj)
-        # Save time points for reference
-        np.save(f"{output_dir}/time_points.npy", t_eval)
+        # Build output folder name from current timestamp
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        output_dir = Path('atn_output') / timestamp
+        print(f"\n[STEP 6] Saving results to {output_dir}/...")
+
+        # Extract spatial grid dimensions from env_df
+        cell_rows = env_df['row'].values.astype(int)
+        cell_cols = env_df['col'].values.astype(int)
+        n_rows = cell_rows.max() + 1
+        n_cols = cell_cols.max() + 1
+
+        # ===== WRITE SIMULATION SUMMARY =====
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with open(output_dir / 'simulation_summary.txt', 'w') as fsum:
+            fsum.write("=" * 60 + "\n")
+            fsum.write("SIMULATION SUMMARY\n")
+            fsum.write(f"Run timestamp : {timestamp}\n")
+            fsum.write("=" * 60 + "\n\n")
+
+            # --- Simulation dimensions ---
+            fsum.write("SIMULATION DIMENSIONS\n")
+            fsum.write("-" * 40 + "\n")
+            fsum.write(f"Number of species  : {n_species}\n")
+            fsum.write(f"Number of time steps: {len(t_eval)}\n")
+            fsum.write(f"Simulation duration : {t_max:.1f} days\n")
+            fsum.write(f"Number of pixels   : {n_cells}\n")
+            fsum.write(f"Grid dimensions    : {n_rows} rows x {n_cols} cols\n\n")
+
+            # --- Species traits ---
+            fsum.write("SPECIES TRAITS\n")
+            fsum.write("-" * 40 + "\n")
+            col_w = [10, 15, 8, 25]
+            header = (f"{'species_id':<{col_w[0]}}"
+                      f"{'body_mass_g':>{col_w[1]}}"
+                      f"{'is_basal':>{col_w[2]}}"
+                      f"{'initial_biomass_g_per_m2':>{col_w[3]}}\n")
+            fsum.write(header)
+            fsum.write("-" * sum(col_w) + "\n")
+            for sp_id, row in traits_df.iterrows():
+                fsum.write(
+                    f"{int(sp_id):<{col_w[0]}}"
+                    f"{row['body_mass_g']:>{col_w[1]}.4f}"
+                    f"{int(row['is_basal']):>{col_w[2]}}"
+                    f"{row['initial_biomass_g_per_m2']:>{col_w[3]}.4f}\n"
+                )
+            fsum.write("\n")
+
+            # --- Model constants ---
+            fsum.write("MODEL CONSTANTS (CONFIG)\n")
+            fsum.write("-" * 40 + "\n")
+            descriptions = {
+                'r0':                  'Basal growth rate normalization (day^-1)',
+                'b_r':                 'Basal growth mass exponent',
+                'X0':                  'Metabolic loss rate normalization (day^-1)',
+                'b_X':                 'Metabolic loss mass exponent',
+                'a0':                  'Attack rate normalization (day^-1)',
+                'b_a_prey':            'Attack rate prey mass exponent',
+                'b_a_pred':            'Attack rate predator mass exponent',
+                'h0':                  'Handling time normalization (days)',
+                'b_h_prey':            'Handling time prey mass exponent',
+                'b_h_pred':            'Handling time predator mass exponent',
+                'q_hill':              'Hill exponent for functional response',
+                'interference':        'Consumer interference coefficient',
+                'R_opt':               'Optimal predator/prey body mass ratio',
+                'gamma':               'L-matrix body-size matching sharpness',
+                'link_threshold':      'Minimum L-matrix link strength',
+                'e_plant':             'Assimilation efficiency — plant prey',
+                'e_animal':            'Assimilation efficiency — animal prey',
+                'K_default':           'Default plant carrying capacity (g/m²)',
+                'use_temperature':     'Apply temperature scaling to rates',
+                'T0_K':                'Reference temperature (K)',
+                'k_B':                 'Boltzmann constant (eV/K)',
+                'E_a':                 'Activation energy (eV)',
+                'ext_threshold':       'Extinction threshold (g/m²)',
+                'extinction_timescale':'Decay timescale for extinct species (days)',
+            }
+            for key, val in CONFIG.items():
+                desc = descriptions.get(key, '')
+                fsum.write(f"  {key:<22} = {str(val):<12}  {desc}\n")
+            fsum.write("\n")
+
+        print(f"  ✓ Saved simulation_summary.txt")
+
+        # ===== WRITE LONG-FORMAT BIOMASS TABLE =====
+        # B_traj shape: (n_timepoints, n_cells, n_species)
+        # Output rows: one per (time_step × pixel × species)
+        # Flatten order matches C (row-major): time varies slowest, species fastest
+        n_tp = len(t_eval)
+        t_rep    = np.repeat(t_eval,                    n_cells * n_species)
+        cell_rep = np.tile(np.repeat(np.arange(n_cells), n_species), n_tp)
+        x_rep    = np.tile(np.repeat(cell_cols,          n_species), n_tp)
+        y_rep    = np.tile(np.repeat(cell_rows,          n_species), n_tp)
+        sp_rep   = np.tile(np.arange(n_species),         n_tp * n_cells)
+        bio_rep  = B_traj.ravel()
+
+        table = np.column_stack([cell_rep, x_rep, y_rep, t_rep, sp_rep, bio_rep])
+        np.savetxt(
+            output_dir / 'biomass.txt', table,
+            fmt=['%d', '%d', '%d', '%.4f', '%d', '%.6e'],
+            header='pixel_id x y time_step species_id biomass',
+            comments=''
+        )
+        print(f"  ✓ Saved biomass.txt ({len(table):,} rows)")
         
         # ===== STEP 8: PRINT SUMMARY STATISTICS =====
         print("\n[STEP 7] Summary statistics:")
