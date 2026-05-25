@@ -1,0 +1,851 @@
+---
+title: "Allometric Trophic Network (ATN) model: formulas, parameters, and implementation notes"
+author: "Working notes"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  word_document:
+    toc: true
+---
+
+# Purpose
+
+This document summarizes the mathematical structure of the Allometric Trophic Network (ATN) models implemented in the R package **ATNr**, but written as a model description rather than as package code. The objective is to make explicit:
+
+1.  the state variables;
+2.  the food-web and body-mass conventions;
+3.  the differential equations;
+4.  the functional responses;
+5.  the way basal species/plants are modelled;
+6.  the parameter definitions needed to implement the models from scratch;
+7.  the checks needed to compare a custom implementation against `ATNr`.
+
+The document focuses on the three ATN model families described in the ATNr paper and manual:
+
+- **Unscaled ATN**, following Binzer et al. (2016);
+- **Scaled ATN**, following Delmas et al. (2017);
+- **Unscaled ATN with nutrients**, following Schneider et al. (2016).
+
+# 1. General ATN idea
+
+An ATN model describes the biomass dynamics of trophically interacting species in a food web. The main state variable is the biomass density of each species:
+
+$$B_i(t)$$
+
+where:
+
+- $i$ indexes a species;
+- $B_i(t)$ is the biomass of species $i$ at time $t$.
+
+The key biological rates are parameterized using species body mass:
+
+$$M_i$$
+
+Body mass is usually treated as fixed for each species during the simulation. It is used to calculate rates such as growth, metabolism, attack/capture, handling time, and sometimes the probability of trophic links.
+
+In short:
+
+$$\text{body mass} \rightarrow \text{biological rates} \rightarrow \text{biomass dynamics}$$
+
+# 2. Index and matrix conventions
+
+The convention used here follows the ATNr paper:
+
+- $i$ is the **resource** species;
+- $j$ is the **consumer** species;
+- $F_{ij}$ is the per-biomass feeding rate of consumer $j$ on resource $i$;
+- $B_j F_{ij}$ is the biomass flow removed from resource $i$ by consumer $j$.
+
+The food-web matrix is:
+
+$$fw_{ij} =
+\begin{cases}
+1, & \text{if consumer } j \text{ eats resource } i \\
+0, & \text{otherwise}
+\end{cases}$$
+
+Thus:
+
+- rows = resources;
+- columns = consumers.
+
+The first $n_b$ species are usually basal species:
+
+$$\text{basal species} = 1, \dots, n_b$$
+
+and consumer species are:
+
+$$\text{consumers} = n_b + 1, \dots, S$$
+
+where $S$ is the total number of species.
+
+# 3. Food-web generation with the L matrix
+
+ATNr can use either empirical food webs or synthetic food webs. One synthetic method is the body-size-based **L matrix** of Schneider et al. (2016).
+
+The L matrix stores the probability that a consumer successfully attacks a resource, based on the match between consumer and resource body masses.
+
+Let:
+
+- $M_i$ = body mass of resource $i$;
+- $M_j$ = body mass of consumer $j$;
+- $R_{opt}$ = optimal consumer/resource body-mass ratio;
+- $\gamma$ = width/shape parameter of the feeding kernel;
+- $th$ = threshold below which interactions are set to zero.
+
+Define:
+
+$$z_{ij} = \frac{M_j}{M_i R_{opt}}$$
+
+Then the Ricker-type feeding kernel is:
+
+$$L_{ij} = \left[z_{ij}\exp(1 - z_{ij})\right]^\gamma$$
+
+A link is removed if:
+
+$$L_{ij} < th$$
+
+and usually basal species are not allowed to consume anything, so for basal consumers:
+
+$$L_{ij} = 0 \quad \text{for } j \leq n_b$$
+
+The binary food-web matrix is then:
+
+$$fw_{ij} = \mathbb{1}(L_{ij} > 0)$$
+
+## Interpretation
+
+The function is maximal when:
+
+$$z_{ij} = 1$$
+
+which means:
+
+$$M_j = R_{opt} M_i$$
+
+So consumer $j$ is most efficient at consuming resources that are approximately $R_{opt}$ times smaller than itself.
+
+# 4. General allometric rate equation
+
+Many model parameters are calculated from body mass and temperature using a general allometric relationship.
+
+For a parameter $p_{ij}$ depending on resource $i$ and consumer $j$:
+
+$$p_{ij} = p_0 M_i^{b_{prey}} M_j^{b_{pred}} \exp\left(\frac{-E(T_0 - T_K)}{k T_K T_0}\right)$$
+
+where:
+
+- $p_0$ is a normalization constant;
+- $M_i$ is resource body mass;
+- $M_j$ is consumer body mass;
+- $b_{prey}$ is the body-mass exponent for resource mass;
+- $b_{pred}$ is the body-mass exponent for consumer mass;
+- $E$ is activation energy;
+- $T_K$ is environmental temperature in Kelvin;
+- $T_0$ is the reference temperature in Kelvin;
+- $k$ is Boltzmann's constant.
+
+This structure is used for parameters such as attack/capture rates and handling times, with different constants and exponents.
+
+# 5. General biomass equations
+
+All three ATN models share the same broad energetic logic.
+
+A species gains biomass from its own growth if it is basal, or from consuming resources if it is non-basal. It loses biomass through metabolism and predation.
+
+## 5.1 Basal species / plants
+
+For basal species $i$:
+
+$$\frac{dB_i}{dt}
+=
+B_i r_i G_i
+-
+X_i B_i
+-
+\sum_j B_j F_{ij}$$
+
+where:
+
+- $B_i r_i G_i$ is realized basal production;
+- $r_i$ is the maximum mass-specific growth rate;
+- $G_i$ is the realized fraction of growth, determined either by logistic limitation or nutrient limitation;
+- $X_i B_i$ is metabolic loss;
+- $\sum_j B_j F_{ij}$ is biomass lost to all consumers.
+
+## 5.2 Non-basal species / consumers
+
+For non-basal consumer species $i$:
+
+$$\frac{dB_i}{dt}
+=
+B_i \sum_j e_j F_{ji}
+-
+X_i B_i
+-
+\sum_j B_j F_{ij}$$
+
+where:
+
+- $F_{ji}$ is the feeding rate of consumer $i$ on resource $j$;
+- $e_j$ is the assimilation efficiency associated with resource $j$;
+- $B_i \sum_j e_j F_{ji}$ is biomass gained by consumer $i$ from its resources;
+- $X_i B_i$ is metabolic loss;
+- $\sum_j B_j F_{ij}$ is biomass of species $i$ lost to its consumers.
+
+# 6. Allometric growth and metabolic rates
+
+The maximum growth rate of basal species is usually a power law of body mass:
+
+$$r_i = r_0 M_i^{b_r}$$
+
+The metabolic loss rate is also a power law:
+
+$$X_i = X_0 M_i^{b_X}$$
+
+In many ATN applications, the exponent is close to:
+
+$$b_r \approx b_X \approx -0.25$$
+
+meaning that larger species have lower mass-specific rates.
+
+# 7. Unscaled ATN model
+
+The unscaled ATN follows the Binzer-style model. Biological rates are used in their original units, without scaling to the smallest basal species.
+
+## 7.1 Functional response
+
+The unscaled functional response is:
+
+$$F_{ij}
+=
+\frac{a_{ij}B_i^q}
+{1 + c_j B_j + \sum_k h_{kj}a_{kj}B_k^q}$$
+
+where:
+
+- $F_{ij}$ is the feeding rate of consumer $j$ on resource $i$;
+- $a_{ij}$ is the clearance or attack rate of consumer $j$ on resource $i$;
+- $B_i$ is resource biomass;
+- $q$ is the Hill exponent;
+- $c_j$ is intraspecific consumer interference for consumer $j$;
+- $B_j$ is consumer biomass;
+- $h_{kj}$ is handling time of consumer $j$ on resource $k$;
+- the sum over $k$ includes all resources of consumer $j$.
+
+## 7.2 Hill exponent
+
+The Hill exponent controls the shape of the functional response:
+
+- $q = 1$: type-II-like response;
+- $1 < q \leq 2$: type-III-like response.
+
+## 7.3 Basal growth limitation
+
+In the unscaled model, basal species have logistic growth:
+
+$$G_i
+=
+1 - \frac{\sum_j \alpha_{ij}B_j}{K_i}$$
+
+where the sum is over basal species.
+
+Parameters:
+
+- $K_i$ is the carrying capacity of basal species $i$;
+- $\alpha_{ij}$ is the effect of basal species $j$ on basal species $i$.
+
+Special cases:
+
+1.  If $\alpha$ is the identity matrix, plants only compete with themselves.
+2.  If off-diagonal values are positive, plants compete with each other.
+3.  If all values of $\alpha$ are one, all basal species share a common resource pool.
+
+## 7.4 Full unscaled equations
+
+For basal species:
+
+$$\frac{dB_i}{dt}
+=
+B_i r_i
+\left(1 - \frac{\sum_j \alpha_{ij}B_j}{K_i}\right)
+-
+X_iB_i
+-
+\sum_j B_j F_{ij}$$
+
+For consumer species:
+
+$$\frac{dB_i}{dt}
+=
+B_i\sum_j e_jF_{ji}
+-
+X_iB_i
+-
+\sum_j B_jF_{ij}$$
+
+# 8. Scaled ATN model
+
+The scaled ATN follows Delmas et al. (2017). It rescales biological rates relative to the growth rate of the smallest basal species.
+
+## 8.1 Scaling idea
+
+Let species 1 be the smallest basal species. Then the model scales time by the growth rate of species 1:
+
+$$\tilde{r}_i = \frac{r_i}{r_1}$$
+
+and:
+
+$$\tilde{x}_i = \frac{X_i}{r_1}$$
+
+The interpretation of time changes: it becomes a relative time scale based on the smallest producer.
+
+## 8.2 Scaled basal equation
+
+For basal species:
+
+$$\frac{dB_i}{dt}
+=
+B_i r_i G_i
+-
+x_iB_i
+-
+\sum_j \frac{x_j}{y_j}B_jF_{ij}$$
+
+where:
+
+- $x_i$ is scaled metabolic rate;
+- $y_j$ is maximum feeding rate relative to metabolic rate for consumer $j$;
+- $x_j/y_j$ converts the dimensionless functional response into a biomass loss rate.
+
+## 8.3 Scaled consumer equation
+
+For consumers:
+
+$$\frac{dB_i}{dt}
+=
+\frac{x_i}{y_i}B_i\sum_j e_jF_{ji}
+-
+x_iB_i
+-
+\sum_j \frac{x_j}{y_j}B_jF_{ij}$$
+
+## 8.4 Scaled functional response
+
+The scaled functional response is:
+
+$$F_{ij}
+=
+\frac{w_{ij}B_i^q}
+{B_{0j}^q + c_jB_j + \sum_k w_{kj}B_k^q}$$
+
+where:
+
+- $w_{ij}$ is the relative preference or consumption weight of consumer $j$ for resource $i$;
+- $B_{0j}$ is the half-saturation density of consumer $j$;
+- $c_j$ is consumer interference;
+- $q$ is the Hill exponent.
+
+The weights are often normalized so that for each consumer $j$:
+
+$$\sum_i w_{ij} = 1$$
+
+## 8.5 Basal growth limitation
+
+The basal growth term is logistic, as in the unscaled model:
+
+$$G_i
+=
+1 - \frac{\sum_j \alpha_{ij}B_j}{K_i}$$
+
+# 9. Unscaled ATN with nutrients
+
+The unscaled ATN with nutrients follows Schneider et al. (2016). It differs from the unscaled model mainly because basal species grow by consuming explicit nutrients rather than through logistic growth.
+
+## 9.1 State variables
+
+The state vector includes nutrients and species biomasses:
+
+$$y(t) = \left(N_1, \dots, N_{n_n}, B_1, \dots, B_S\right)$$
+
+where:
+
+- $N_n$ is the concentration of nutrient $n$;
+- $B_i$ is the biomass of species $i$.
+
+## 9.2 Functional response with capture coefficients
+
+The nutrient model uses a capture coefficient $b_{ij}$ and consumption weights $w_{ij}$:
+
+$$F_{ij}
+=
+\frac{w_{ij}b_{ij}B_i^q}
+{M_j\left(1 + c_jB_j + \sum_k w_{kj}h_{kj}b_{kj}B_k^q\right)}$$
+
+where:
+
+- $F_{ij}$ is the per-biomass feeding rate of consumer $j$ on resource $i$;
+- $w_{ij}$ is the relative consumption weight;
+- $b_{ij}$ is the capture coefficient;
+- $B_i$ is resource biomass;
+- $q$ is the Hill exponent;
+- $M_j$ is consumer body mass;
+- $c_j$ is consumer interference;
+- $h_{kj}$ is handling time of consumer $j$ on resource $k$.
+
+**Implementation note.** Under the resource-first convention, the mass term used to convert individual feeding to per-biomass feeding should be the consumer body mass $M_j$. When cloning ATNr exactly, this is one of the terms that should be checked by comparing one-step derivatives against the package implementation.
+
+## 9.3 Nutrient-limited plant growth
+
+Basal species do not use logistic growth in this version. Instead, they grow according to the most limiting nutrient:
+
+$$G_i = \min_{n \in nutrients}
+\left(
+\frac{N_n}{K_{ni} + N_n}
+\right)$$
+
+where:
+
+- $N_n$ is nutrient concentration;
+- $K_{ni}$ is the half-saturation constant or uptake-efficiency parameter for nutrient $n$ by plant $i$;
+- $G_i$ is between 0 and 1.
+
+This is Liebig-style limitation: the scarcest nutrient controls plant growth.
+
+## 9.4 Nutrient dynamics
+
+Nutrient concentrations change through external replenishment and depletion by plant growth:
+
+$$\frac{dN_n}{dt}
+=
+D(S_n - N_n)
+-
+\sum_i v_{ni} r_iG_iB_i$$
+
+where the sum is over basal species.
+
+Parameters:
+
+- $D$ is the nutrient turnover rate;
+- $S_n$ is the supply or maximum concentration of nutrient $n$;
+- $v_{ni}$ is the relative content of nutrient $n$ in plant species $i$;
+- $r_iG_iB_i$ is realized production of basal species $i$.
+
+## 9.5 Full nutrient-model basal equation
+
+For basal species:
+
+$$\frac{dB_i}{dt}
+=
+B_i r_iG_i
+-
+X_iB_i
+-
+\sum_j B_jF_{ij}$$
+
+with:
+
+$$G_i = \min_n\left(\frac{N_n}{K_{ni}+N_n}\right)$$
+
+## 9.6 Full nutrient-model consumer equation
+
+For consumers:
+
+$$\frac{dB_i}{dt}
+=
+B_i\sum_j e_jF_{ji}
+-
+X_iB_i
+-
+\sum_j B_jF_{ij}$$
+
+# 10. How plants are modelled
+
+Plants are modelled as **basal biomass compartments**. They are not individuals and they do not have Madingley-style cohort life histories.
+
+Each plant/basal species has:
+
+$$B_i(t), M_i, r_i, X_i$$
+
+and either:
+
+1.  logistic limitation in the unscaled and scaled models; or
+2.  nutrient limitation in the unscaled-with-nutrients model.
+
+## 10.1 Logistic plant version
+
+$$\frac{dB_i}{dt}
+=
+B_i r_i
+\left(1 - \frac{\sum_j \alpha_{ij}B_j}{K_i}\right)
+-
+X_iB_i
+-
+\sum_j B_jF_{ij}$$
+
+## 10.2 Nutrient plant version
+
+$$\frac{dB_i}{dt}
+=
+B_i r_i
+\min_n\left(\frac{N_n}{K_{ni}+N_n}\right)
+-
+X_iB_i
+-
+\sum_j B_jF_{ij}$$
+
+Thus, in ATN, plants are species-level biomass nodes. Their body mass controls growth and metabolism, but the model does not track plant individuals, age, or reproductive events.
+
+# 11. Parameter tables
+
+## 11.1 Structural parameters
+
+| Parameter | Meaning | Dimension / length | Used in |
+|----|----|---:|----|
+| $S$ or `nb_s` | total number of species | scalar | all models |
+| $n_b$ or `nb_b` | number of basal species | scalar | all models |
+| $n_n$ or `nb_n` | number of nutrient pools | scalar | nutrient model |
+| $M_i$ or `BM` | body mass of species $i$ | length $S$ | all models |
+| `fw` | binary food-web adjacency matrix | $S \times S$ | all models |
+| `L` | attack-success probability matrix | $S \times S$ | Schneider / food-web generation |
+| `ext` | extinction threshold | scalar | solver / filtering |
+
+## 11.2 L-matrix parameters
+
+| Parameter | Meaning | Typical role |
+|----|----|----|
+| $R_{opt}$ | optimal consumer/resource body-mass ratio | determines preferred prey size |
+| $\gamma$ | width/shape of Ricker feeding kernel | controls niche breadth |
+| $th$ | threshold for link removal | removes weak interactions |
+| $M_i$ | resource body mass | enters $z_{ij}$ |
+| $M_j$ | consumer body mass | enters $z_{ij}$ |
+
+## 11.3 General allometric and temperature parameters
+
+| Parameter | Meaning | Notes |
+|----|----|----|
+| $p_0$ | normalization constant | rate-specific |
+| $b_{prey}$ | resource body-mass exponent | used for pairwise matrices |
+| $b_{pred}$ | consumer body-mass exponent | used for pairwise matrices |
+| $E$ | activation energy | controls temperature dependence |
+| $T_K$ | environmental temperature in Kelvin | usually Celsius + 273.15 |
+| $T_0$ | reference temperature in Kelvin | commonly 293.15 K or 20 C in Kelvin |
+| $k$ | Boltzmann constant | $8.617 \times 10^{-5}$ eV K$^{-1}$ |
+
+## 11.4 Unscaled model parameters
+
+| Parameter | Meaning | Dimension |
+|----|----|---:|
+| $r_i$ | maximum growth rate of basal species | length $n_b$ |
+| $X_i$ | metabolic rate of species $i$ | length $S$ |
+| $a_{ij}$ | clearance / attack rate of consumer $j$ on resource $i$ | $S \times (S-n_b)$ or $S \times S$ |
+| $h_{ij}$ | handling time of consumer $j$ on resource $i$ | $S \times (S-n_b)$ or $S \times S$ |
+| $e_i$ | assimilation efficiency associated with resource/species $i$ | length $S$ |
+| $q_j$ | Hill exponent of consumer $j$ | length $S-n_b$ or scalar |
+| $c_j$ | interference competition of consumer $j$ | length $S-n_b$ or scalar |
+| $K_i$ | carrying capacity of basal species $i$ | length $n_b$ |
+| $\alpha_{ij}$ | competition among basal species | $n_b \times n_b$ |
+| `F` | feeding-rate matrix | $S \times (S-n_b)$ or $S \times S$ |
+
+## 11.5 Scaled model parameters
+
+| Parameter | Meaning | Dimension |
+|----|----|---:|
+| $r_i$ | scaled growth rate of basal species | length $n_b$ |
+| $x_i$ or $X_i$ | scaled metabolic rate | length $S$ |
+| $y_i$ or `max_feed` | maximum feeding rate relative to metabolism | length $S-n_b$ |
+| $e_i$ | assimilation efficiency | length $S$ |
+| $w_{ij}$ | relative consumption weight | $S \times (S-n_b)$ |
+| $B_{0j}$ | half-saturation biomass for consumer $j$ | length $S-n_b$ |
+| $q_j$ | Hill exponent | length $S-n_b$ or scalar |
+| $c_j$ | interference competition | length $S-n_b$ or scalar |
+| $K_i$ | carrying capacity of basal species | length $n_b$ |
+| $\alpha_{ij}$ | basal competition matrix | $n_b \times n_b$ |
+
+## 11.6 Unscaled-with-nutrients model parameters
+
+| Parameter | Meaning | Dimension |
+|----|----|---:|
+| $r_i$ | maximum growth rate of basal species | length $n_b$ |
+| $X_i$ | metabolic rate of each species | length $S$ |
+| $b_{ij}$ | capture coefficient of consumer $j$ on resource $i$ | $S \times (S-n_b)$ or $S \times S$ |
+| $h_{ij}$ | handling time of consumer $j$ on resource $i$ | $S \times (S-n_b)$ or $S \times S$ |
+| $w_{ij}$ | relative consumption weight | $S \times (S-n_b)$ |
+| $e_i$ | assimilation efficiency | length $S$ |
+| $q_j$ | Hill exponent | length $S-n_b$ or scalar |
+| $c_j$ | consumer interference | length $S-n_b$ or scalar |
+| $N_n$ | nutrient concentration | length $n_n$ |
+| $K_{ni}$ | plant nutrient half-saturation / uptake parameter | $n_n \times n_b$ |
+| $V_{ni}$ or $v_{ni}$ | relative content of nutrient $n$ in plant $i$ | $n_n \times n_b$ |
+| $S_n$ | nutrient supply concentration | length $n_n$ |
+| $D$ | nutrient turnover rate | scalar or length $n_n$ |
+
+## 11.7 Schneider default parameter names in ATNr
+
+The ATNr manual lists a dataset called `schneider`, containing default parameters used to initialize the Schneider et al. nutrient model.
+
+| ATNr name     | Meaning                                              |
+|---------------|------------------------------------------------------|
+| `Temperature` | ambient temperature in Celsius                       |
+| `T.K`         | ambient temperature in Kelvin                        |
+| `k`           | Boltzmann constant                                   |
+| `T0`          | reference temperature in Kelvin                      |
+| `q`           | Hill exponent                                        |
+| `Ropt`        | optimal consumer/resource body-mass ratio            |
+| `gamma`       | shape/width of Ricker function                       |
+| `mu_c`        | mean predator interference                           |
+| `sd_c`        | standard deviation of predator interference          |
+| `E.c`         | activation energy for interference                   |
+| `h0`          | normalization constant for handling time             |
+| `hpred`       | predator body-mass exponent for handling time        |
+| `hprey`       | prey body-mass exponent for handling time            |
+| `E.h`         | activation energy for handling time                  |
+| `b0`          | normalization constant for capture coefficient       |
+| `bprey`       | prey body-mass exponent for capture coefficient      |
+| `bpred`       | predator body-mass exponent for capture coefficient  |
+| `E.b`         | activation energy for capture coefficient            |
+| `e_P`         | assimilation efficiency for plant resources          |
+| `e_A`         | assimilation efficiency for animal resources         |
+| `x_P`         | plant metabolic normalization constant               |
+| `x_A`         | animal metabolic normalization constant              |
+| `E.x`         | activation energy for metabolic rates                |
+| `expX`        | exponent for metabolic scaling                       |
+| `D`           | nutrient turnover rate                               |
+| `nut_up_min`  | minimum nutrient uptake-efficiency parameter         |
+| `nut_up_max`  | maximum nutrient uptake-efficiency parameter         |
+| `mu_nut`      | mean maximum nutrient concentration                  |
+| `sd_nut`      | standard deviation of maximum nutrient concentration |
+| `v`           | relative content of nutrient 1 in plant biomass      |
+
+# 12. Assimilation efficiencies
+
+Assimilation efficiencies determine how much consumed biomass becomes consumer biomass.
+
+A common distinction is:
+
+$$e_i =
+\begin{cases}
+e_P, & \text{if resource } i \text{ is a plant} \\
+e_A, & \text{if resource } i \text{ is an animal}
+\end{cases}$$
+
+where:
+
+- $e_P$ is plant-resource assimilation efficiency;
+- $e_A$ is animal-resource assimilation efficiency.
+
+Usually:
+
+$$e_P < e_A$$
+
+because plant material is less efficiently converted into consumer biomass than animal prey.
+
+# 13. Diet weights
+
+In the scaled and nutrient models, diet weights $w_{ij}$ distribute consumer feeding effort among resources.
+
+A simple normalization is:
+
+$$w_{ij} = \frac{fw_{ij}}{\sum_k fw_{kj}}$$
+
+if all resources are equally preferred.
+
+In the Schneider model, weights can also be based on the L matrix:
+
+$$w_{ij} = \frac{L_{ij}}{\sum_k L_{kj}}$$
+
+for each consumer $j$.
+
+The general rule is:
+
+$$\sum_i w_{ij} = 1$$
+
+for each consumer $j$ that has at least one resource.
+
+# 14. Biomass flow interpretation
+
+The feeding rate $F_{ij}$ is per unit biomass of the consumer. Therefore:
+
+$$B_jF_{ij}$$
+
+is the biomass of resource $i$ removed by consumer $j$ per unit time.
+
+The biomass gained by consumer $j$ from resource $i$ is:
+
+$$e_i B_jF_{ij}$$
+
+where $e_i$ is the assimilation efficiency associated with the resource.
+
+# 15. Extinction threshold
+
+ATNr uses an extinction threshold to identify effectively extinct species.
+
+If:
+
+$$B_i < ext$$
+
+then species $i$ can be treated as extinct, often by setting:
+
+$$B_i = 0$$
+
+A common value is:
+
+$$ext = 10^{-6}$$
+
+For model comparison, the extinction rule matters because once a species is set to zero, it should no longer consume, grow, or be consumed.
+
+# 16. Solver structure
+
+The ODE solver integrates:
+
+$$\frac{dy}{dt} = f(y, t, \theta)$$
+
+where:
+
+- $y$ is the vector of state variables;
+- $t$ is time;
+- $\theta$ is the parameter set.
+
+For non-nutrient models:
+
+$$y = (B_1, \dots, B_S)$$
+
+For nutrient models:
+
+$$y = (N_1, \dots, N_{n_n}, B_1, \dots, B_S)$$
+
+ATNr uses a wrapper around `deSolve::lsoda()`. A custom implementation can use `deSolve::ode()`, `deSolve::lsoda()`, or another ODE solver, but the derivative function must return exactly the same derivatives if the model is to match ATNr.
+
+# 17. Model-specific summary
+
+| Feature | Unscaled | Scaled | Unscaled with nutrients |
+|----|----|----|----|
+| Main reference | Binzer et al. 2016 | Delmas et al. 2017 | Schneider et al. 2016 |
+| State variables | species biomasses | species biomasses | nutrients + species biomasses |
+| Basal growth | logistic | logistic | nutrient-limited |
+| Functional response | attack and handling times | weighted and scaled by metabolism | capture coefficient, handling, weights |
+| Time scale | original units | relative to smallest basal growth rate | original units |
+| Explicit nutrients | no | no | yes |
+| Main use | direct biological rates | comparable relative dynamics | plant-nutrient-food-web dynamics |
+
+# 18. Checklist for implementing from scratch
+
+To reproduce ATNr from scratch, implement these components in this order.
+
+## 18.1 Inputs
+
+- `S`: total number of species;
+- `nb_b`: number of basal species;
+- `nb_n`: number of nutrients, if needed;
+- `BM`: vector of body masses;
+- `fw`: resource-by-consumer food-web matrix;
+- initial biomasses;
+- initial nutrient concentrations, if needed.
+
+## 18.2 Food-web matrices
+
+- compute L matrix;
+- threshold weak links;
+- remove feeding by basal species;
+- create binary food-web matrix;
+- normalize diet weights if needed.
+
+## 18.3 Parameter initialization
+
+- growth rates $r_i$;
+- metabolic rates $X_i$ or $x_i$;
+- attack or capture rates;
+- handling times;
+- assimilation efficiencies;
+- Hill exponents;
+- consumer interference;
+- carrying capacities or nutrients.
+
+## 18.4 ODE derivatives
+
+For every time step:
+
+1.  split state vector into nutrients and biomasses, if needed;
+2.  compute growth limitation $G_i$ for basal species;
+3.  compute feeding matrix $F_{ij}$;
+4.  compute basal derivatives;
+5.  compute consumer derivatives;
+6.  compute nutrient derivatives, if needed;
+7.  apply extinction logic consistently.
+
+# 19. Validation against ATNr
+
+To ensure a custom implementation is really doing the same thing as ATNr, compare the following objects.
+
+## 19.1 Structural comparison
+
+Compare:
+
+- body masses;
+- food-web matrix;
+- L matrix;
+- number of basal species;
+- number of nutrients;
+- initial biomasses.
+
+## 19.2 Parameter comparison
+
+Compare:
+
+- $r$;
+- $X$ or $x$;
+- $a$ or $b$;
+- $h$;
+- $w$;
+- $e$;
+- $q$;
+- $c$;
+- $K$ and $\alpha$;
+- nutrient parameters $K_{ni}$, $V_{ni}$, $S_n$, $D$.
+
+## 19.3 Derivative comparison
+
+The most important test is a one-step derivative comparison.
+
+At the same initial state $y_0$, compare:
+
+$$f_{custom}(y_0, t_0)$$
+
+against:
+
+$$f_{ATNr}(y_0, t_0)$$
+
+If the derivatives differ, the implementation is not equivalent, even if long-term trajectories look similar.
+
+## 19.4 Trajectory comparison
+
+After derivative comparison passes, compare full ODE solutions:
+
+$$B_i^{custom}(t)
+\quad \text{vs.} \quad
+B_i^{ATNr}(t)$$
+
+Small numerical differences can arise from solver tolerances, but major differences usually indicate a formula, indexing, or parameter mismatch.
+
+# 20. Most common implementation mistakes
+
+1.  **Wrong food-web orientation.** Rows must be resources and columns consumers.
+2.  **Using consumer indices incorrectly.** In many matrices, columns correspond only to consumers, not all species.
+3.  **Confusing resource and consumer body mass.** Pairwise rates usually use both.
+4.  **Not normalizing diet weights.** For each consumer, weights should usually sum to 1.
+5.  **Incorrect extinction handling.** Extinct species should not continue feeding.
+6.  **Changing body masses without recalculating rates.** Body mass controls many parameters.
+7.  **Using the wrong plant model.** Logistic plants and nutrient-limited plants are different ATN versions.
+8.  **Comparing trajectories before comparing derivatives.** Derivatives are the cleanest check.
+
+# 21. References
+
+- Binzer, A., Guill, C., Rall, B. C., & Brose, U. (2016). Interactive effects of warming, eutrophication and size structure: impacts on biodiversity and food-web structure. *Global Change Biology*, 22, 220-227.
+- Delmas, E., Brose, U., Gravel, D., Stouffer, D. B., & Poisot, T. (2017). Simulations of biomass dynamics in community food webs. *Methods in Ecology and Evolution*, 8, 881-886.
+- Gauzens, B., Brose, U., Delmas, E., & Berti, E. (2023). ATNr: Allometric Trophic Network models in R. *Methods in Ecology and Evolution*, 14, 2766-2773.
+- Schneider, F. D., Brose, U., Rall, B. C., & Guill, C. (2016). Animal diversity and ecosystem functioning in dynamic food webs. *Nature Communications*, 7, 12718.
+- Williams, R. J., & Martinez, N. D. (2000). Simple rules yield complex food webs. *Nature*, 404, 180-183.
+- Yodzis, P., & Innes, S. (1992). Body size and consumer-resource dynamics. *The American Naturalist*, 139, 1151-1175.

@@ -125,7 +125,7 @@ class ATNModel:
             p0, b_prey, b_pred = self.h0, self.bh_prey, self.bh_pred
         else:
             # Raise error if unknown rate type requested
-            raise ValueError(f\"Unknown rate type: {rate_type}\")
+            raise ValueError(f"Unknown rate type: {rate_type}")
         
         # Compute allometric part: p0 * M_prey^b_prey * M_pred^b_pred
         p_allom = p0 * np.power(M_prey, b_prey) * np.power(M_pred, b_pred)
@@ -314,10 +314,10 @@ class ATNModel:
         # Loop over cells and integrate each independently
         for cell_idx in range(self.n_cells):
             # Print progress indicator
-            print(f\"  Running cell {cell_idx} / {self.n_cells} ...\", end='\r')
+            print(f"  Running cell {cell_idx} / {self.n_cells} ...", end='\r')
             # Integrate this cell's dynamics
             B_traj[:, cell_idx, :] = self.run_cell(B_initial[cell_idx, :], cell_idx, t_eval)
         
         # Print completion message
-        print(f\"✓ Completed all {self.n_cells} cells.              \")
+        print(f"✓ Completed all {self.n_cells} cells.              ")
         return B_traj
