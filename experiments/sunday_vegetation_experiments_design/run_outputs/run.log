@@ -1,0 +1,61 @@
+$ /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/context/MadingleyR/Package/inst/mac_exec/madingley run 3 -73 -72 45 46 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/ 11988 11988 11988 0 1 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/input/ 500 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/input/C.csv /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/input/S.csv 0 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/spatial_inputs/1deg/ 1 0 1 1 0
+--- STDOUT ---
+No HANPP applied
+Running the model without dispersal between grid cells
+Using default model parameters
+Spatial resolution: 1 degree
+Number of grid cells: 1
+Initializing 1 gridcells. done
+Loading cohort and stock data, loading failed
+Retry 1 loading cohort and stock data, loading failed
+Retry 2 loading cohort and stock data, loading failed
+Retry 3 loading cohort and stock data, loading failed
+Retry 4 loading cohort and stock data, loading failed
+Retry 5 loading cohort and stock data, loading failed
+Retry 6 loading cohort and stock data, loading failed
+Retry 7 loading cohort and stock data, loading failed
+Retry 8 loading cohort and stock data, loading failed
+Retry 9 loading cohort and stock data, loading failed
+0 cohorts and 4 stocks initialized
+     
+Running time step 1 / 36 (months), n cohorts: 0
+Running time step 2 / 36 (months), n cohorts: 0, time step took: 0.001164 (sec)
+Running time step 3 / 36 (months), n cohorts: 0, time step took: 0.000233 (sec)
+Running time step 4 / 36 (months), n cohorts: 0, time step took: 0.00028 (sec)
+Running time step 5 / 36 (months), n cohorts: 0, time step took: 0.000187 (sec)
+Running time step 6 / 36 (months), n cohorts: 0, time step took: 0.000191 (sec)
+Running time step 7 / 36 (months), n cohorts: 0, time step took: 0.000192 (sec)
+Running time step 8 / 36 (months), n cohorts: 0, time step took: 0.000173 (sec)
+Running time step 9 / 36 (months), n cohorts: 0, time step took: 0.000224 (sec)
+Running time step 10 / 36 (months), n cohorts: 0, time step took: 0.000228 (sec)
+Running time step 11 / 36 (months), n cohorts: 0, time step took: 0.000194 (sec)
+Running time step 12 / 36 (months), n cohorts: 0, time step took: 0.000182 (sec)
+Running time step 13 / 36 (months), n cohorts: 0, time step took: 0.000169 (sec)
+Running time step 14 / 36 (months), n cohorts: 0, time step took: 0.000186 (sec)
+Running time step 15 / 36 (months), n cohorts: 0, time step took: 0.000191 (sec)
+Running time step 16 / 36 (months), n cohorts: 0, time step took: 0.000205 (sec)
+Running time step 17 / 36 (months), n cohorts: 0, time step took: 0.00018 (sec)
+Running time step 18 / 36 (months), n cohorts: 0, time step took: 0.000178 (sec)
+Running time step 19 / 36 (months), n cohorts: 0, time step took: 0.000216 (sec)
+Running time step 20 / 36 (months), n cohorts: 0, time step took: 0.000183 (sec)
+Running time step 21 / 36 (months), n cohorts: 0, time step took: 0.000185 (sec)
+Running time step 22 / 36 (months), n cohorts: 0, time step took: 0.00022 (sec)
+Running time step 23 / 36 (months), n cohorts: 0, time step took: 0.000186 (sec)
+Running time step 24 / 36 (months), n cohorts: 0, time step took: 0.000212 (sec)
+Running time step 25 / 36 (months), n cohorts: 0, time step took: 0.000159 (sec)
+Running time step 26 / 36 (months), n cohorts: 0, time step took: 0.000202 (sec)
+Running time step 27 / 36 (months), n cohorts: 0, time step took: 0.000208 (sec)
+Running time step 28 / 36 (months), n cohorts: 0, time step took: 0.000184 (sec)
+Running time step 29 / 36 (months), n cohorts: 0, time step took: 0.000242 (sec)
+Running time step 30 / 36 (months), n cohorts: 0, time step took: 0.000235 (sec)
+Running time step 31 / 36 (months), n cohorts: 0, time step took: 0.00018 (sec)
+Running time step 32 / 36 (months), n cohorts: 0, time step took: 0.000218 (sec)
+Running time step 33 / 36 (months), n cohorts: 0, time step took: 0.000181 (sec)
+Running time step 34 / 36 (months), n cohorts: 0, time step took: 0.00019 (sec)
+Running time step 35 / 36 (months), n cohorts: 0, time step took: 0.000172 (sec)
+Running time step 36 / 36 (months), n cohorts: 0, time step took: 0.000207 (sec)
+Total elapsed time was 0.03992 (sec)
+
+--- STDERR ---
+
+--- exit=0 ---

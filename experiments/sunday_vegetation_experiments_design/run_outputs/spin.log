@@ -1,0 +1,15 @@
+$ /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/context/MadingleyR/Package/inst/mac_exec/madingley spin 0 -73 -72 45 46 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/ 11988 11988 11988 11988 0 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/input/ 500 none none 0 /Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/run_outputs/spatial_inputs/1deg/ 1 0 1 1 0
+--- STDOUT ---
+No HANPP applied
+Running the model without dispersal between grid cells
+Spatial resolution: 1 degree
+Number of grid cells: 1
+Initializing cohorts and stocks using cohort and stock definitions
+Initializing 1 gridcells. done
+495 cohorts and 2 stocks initialized
+     
+Total elapsed time was 0.020322 (sec)
+
+--- STDERR ---
+
+--- exit=0 ---
