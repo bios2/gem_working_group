@@ -88,12 +88,12 @@ def main(env_file: str, adj_file: str, traits_file: str,
         B_initial = np.maximum(B_initial, 0)
         
         # Print initial condition statistics
-        print(f\"  ✓ Initial biomass range: {B_initial[B_initial > 0].min():.2e} to \"
-              f\"{B_initial.max():.2e} g/m²\")
-        print(f\"  ✓ Total initial biomass: {B_initial.sum():.2e} g/m²\")
+        print(f"  ✓ Initial biomass range: {B_initial[B_initial > 0].min():.2e} to "
+              f"{B_initial.max():.2e} g/m²")
+        print(f"  ✓ Total initial biomass: {B_initial.sum():.2e} g/m²")
         
         # ===== STEP 6: TIME INTEGRATION =====
-        print(f\"\\n[STEP 5] Running simulation for {t_max} days ({n_timesteps} timesteps)...\")
+        print(f"\n[STEP 5] Running simulation for {t_max} days ({n_timesteps} timesteps)...")
         # Create time vector: linearly spaced points from 0 to t_max
         t_eval = np.linspace(0, t_max, n_timesteps)
         
@@ -101,66 +101,66 @@ def main(env_file: str, adj_file: str, traits_file: str,
         B_traj = model.run_all_cells(B_initial, t_eval)
         
         # ===== STEP 7: SAVE RESULTS =====
-        print(f\"\\n[STEP 6] Saving results to {output_dir}...\")
+        print(f"\n[STEP 6] Saving results to {output_dir}...")
         # Create output directory if it doesn't exist
         Path(output_dir).mkdir(exist_ok=True)
         
         # Save biomass trajectory as NumPy binary file (efficient storage)
-        np.save(f\"{output_dir}/biomass_trajectory.npy\", B_traj)
+        np.save(f"{output_dir}/biomass_trajectory.npy", B_traj)
         # Save time points for reference
-        np.save(f\"{output_dir}/time_points.npy\", t_eval)
+        np.save(f"{output_dir}/time_points.npy", t_eval)
         
         # ===== STEP 8: PRINT SUMMARY STATISTICS =====
-        print(\"\\n[STEP 7] Summary statistics:\")
+        print("\n[STEP 7] Summary statistics:")
         
         # Compute final average biomass per species (averaged across all cells)
         final_biomass = B_traj[-1, :, :].mean(axis=0)
-        print(f\"\\n  Final mean biomass per species (g/m²):\")
+        print(f"\n  Final mean biomass per species (g/m²):")
         # Print first 10 species
         for i in range(min(n_species, 10)):
             # Label as basal or consumer
-            spp_name = f\"Spp {i} (basal)\" if traits_df.iloc[i]['is_basal'] else f\"Spp {i}\"
-            print(f\"    {spp_name:20s}: {final_biomass[i]:.4e}\")
+            spp_name = f"Spp {i} (basal)" if traits_df.iloc[i]['is_basal'] else f"Spp {i}"
+            print(f"    {spp_name:20s}: {final_biomass[i]:.4e}")
         # Indicate if there are more species
         if n_species > 10:
-            print(f\"    ... and {n_species - 10} more\")
+            print(f"    ... and {n_species - 10} more")
         
         # Compute persistence: fraction of cells where each species survives
-        # Extinction threshold from config determines \"survives\"
+        # Extinction threshold from config determines "survives"
         persistence = np.sum(B_traj[-1, :, :] > CONFIG['ext_threshold'], axis=0) / n_cells * 100
-        print(f\"\\n  Persistence (% cells where species survives > {CONFIG['ext_threshold']:.0e}):\")
+        print(f"\n  Persistence (% cells where species survives > {CONFIG['ext_threshold']:.0e}):")
         for i in range(min(n_species, 10)):
-            spp_name = f\"Spp {i} (basal)\" if traits_df.iloc[i]['is_basal'] else f\"Spp {i}\"
-            print(f\"    {spp_name:20s}: {persistence[i]:6.1f}%\")
+            spp_name = f"Spp {i} (basal)" if traits_df.iloc[i]['is_basal'] else f"Spp {i}"
+            print(f"    {spp_name:20s}: {persistence[i]:6.1f}%")
         if n_species > 10:
-            print(f\"    ... and {n_species - 10} more\")
+            print(f"    ... and {n_species - 10} more")
         
         # Count species that went locally extinct in at least one cell
         n_extinct = np.sum(persistence < 1.0)
-        print(f\"\\n  Locally extinct in some cells: {n_extinct} species\")
+        print(f"\n  Locally extinct in some cells: {n_extinct} species")
         
         # ===== COMPLETION =====
-        print(\"\\n\" + \"=\" * 70)
-        print(\"✓ SIMULATION COMPLETE\")
-        print(\"=\" * 70 + \"\\n\")
+        print("\n" + "=" * 70)
+        print("✓ SIMULATION COMPLETE")
+        print("=" * 70 + "\n")
         
         # Return results for further analysis
         return B_traj, t_eval, model
     
     except ValidationError as e:
         # Handle validation errors with informative output
-        print(f\"\\n{'='*70}\")
-        print(\"✗ VALIDATION ERROR\")
-        print(\"=\"*70)
-        print(f\"\\n{e}\\n\")
+        print(f"\n{'='*70}")
+        print("✗ VALIDATION ERROR")
+        print("="*70)
+        print(f"\n{e}\n")
         sys.exit(1)  # exit with error code
     
     except Exception as e:
         # Handle unexpected errors with traceback
-        print(f\"\\n{'='*70}\")
-        print(\"✗ UNEXPECTED ERROR\")
-        print(\"=\"*70)
-        print(f\"\\n{type(e).__name__}: {e}\\n\")
+        print(f"\n{'='*70}")
+        print("✗ UNEXPECTED ERROR")
+        print("="*70)
+        print(f"\n{type(e).__name__}: {e}\n")
         # Print full traceback for debugging
         import traceback
         traceback.print_exc()
