@@ -22,18 +22,17 @@ from atn_io import (
 from atn_model import ATNModel  # the ODE model
 from config import CONFIG  # default parameters
 
-def main(env_file: str, adj_file: str, traits_file: str, 
-         t_max: float = 100.0, n_timesteps: int = 1000, 
+def main(env_file: str, adj_file: str, traits_file: str,
+         t_max: float = 100.0,
          output_dir: str = './atn_output'):
     """
     Run the ATN model with full validation.
-    
+
     Parameters:
         env_file: path to env_mat.txt (environment: temperature, carrying capacity)
         adj_file: path to adj_mat.txt (adjacency matrix: food web links)
         traits_file: path to traits.txt (species traits: body mass, initial biomass)
-        t_max: simulation end time (days)
-        n_timesteps: number of output timesteps (determines output resolution)
+        t_max: simulation end time (days); one output point is saved per day
         output_dir: directory to save results
     """
     
@@ -93,9 +92,9 @@ def main(env_file: str, adj_file: str, traits_file: str,
         print(f"  ✓ Total initial biomass: {B_initial.sum():.2e} g/m²")
         
         # ===== STEP 6: TIME INTEGRATION =====
-        print(f"\n[STEP 5] Running simulation for {t_max} days ({n_timesteps} timesteps)...")
-        # Create time vector: linearly spaced points from 0 to t_max
-        t_eval = np.linspace(0, t_max, n_timesteps)
+        n_timepoints = int(t_max) + 1  # one output point per day, day 0 through day t_max
+        print(f"\n[STEP 5] Running simulation for {t_max} days ({n_timepoints} output points)...")
+        t_eval = np.linspace(0, t_max, n_timepoints)
         
         # Run ODE integration for all cells (returns full trajectory)
         B_traj = model.run_all_cells(B_initial, t_eval)
@@ -180,4 +179,4 @@ if __name__ == '__main__':
         traits_f = 'traits.txt'
     
     # Run the model
-    B_traj, t_eval, model = main(env_f, adj_f, traits_f, t_max=100, n_timesteps=100)
+    B_traj, t_eval, model = main(env_f, adj_f, traits_f, t_max=100)

@@ -78,7 +78,7 @@ def test_atn():
         
         # ===== TEST 7: CHECK OUTPUT =====
         print("\n[TEST 7] Verifying output...")
-        # Check output shape: should be (n_timesteps, n_cells, n_species)
+        # Check output shape: should be (n_timepoints, n_cells, n_species)
         assert B_traj.shape == (len(t_eval), model.n_cells, model.n_species), \
             f"Output shape mismatch: {B_traj.shape}"
         print(f"  ✓ Output shape: {B_traj.shape}")
