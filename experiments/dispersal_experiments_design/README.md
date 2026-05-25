@@ -1,8 +1,7 @@
 # Dispersal experiments
 
 Monday : The objective for today is to build a dispersal model on a grid that mimics a diffusion process. To this end, we take inspiration from the Ryzer paper (2021) - Landscape heterogeneity buffers biodiversity of
-simulated meta-food-webs under global change
-through rescue and drainage effects.
+simulated meta-food-webs under global change through rescue and drainage effects.
 
 The Ryzer paper is slightly more complicated than a standard dispersal on a grid, as it accounts for emigration triggers,
 such as resource availability, predation pressure, and inter- and intra-specific

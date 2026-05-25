@@ -16,7 +16,7 @@ For now, two things must be different from the Ryser paper. First, dispersal wil
 |-context : papers necessary to implement the spatial ATN model
 |-functions : function to implement the simulation
 |-thinking : documentation
-|- scripts : scritps to execute simulation
+|- scripts : scripts to execute simulation
 |-data : external data to calibrate the model (not needed for now)
 |-figures : visual outputs of the simulation model
 
@@ -28,6 +28,6 @@ All code must be written in R
 
 Always answer in English
 
-Always confirm with me before adding a file, modifying a file or 
+Always confirm with me before adding a file, modifying a file or executing code
 
 Output your thinking process into a specific file that you update in the thinking folder. Be synthetic and make sure it is easily readable and understable for graduate ecologists.
