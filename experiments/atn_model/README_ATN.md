@@ -119,6 +119,32 @@ ODE solver (scipy.odeint) integrates forward in time
 Biomass trajectory saved to .npy files
 ```
 
+## Function Call Graph
+
+```
+ATNModel.__init__(adj_mat, traits_df, env_df, config)
+│  Reads adj_mat, traits_df, env_df; extracts allometric constants from config
+│
+├── _L_matrix()                    body-size feeding kernel L_ij
+│       └─ returns L * adj_mat     (food-web topology with size-matching)
+│
+└── run_all_cells(B_initial, t_eval)
+        │  iterates over spatial cells
+        │
+        └── run_cell(B_initial[cell], cell_idx, t_eval)
+                │  wraps scipy.odeint for one cell
+                │
+                └── derivatives(y, t, cell_idx)     ← ODE RHS, called each solver step
+                        │
+                        ├── _allometric_rate('attack')    → a_ij  (n_spp × n_spp)
+                        ├── _allometric_rate('handling')  → h_ij  (n_spp × n_spp)
+                        ├── _metabolic_rate()             → X     (n_spp,)
+                        ├── _basal_growth_rate()          → r     (n_spp,)
+                        │
+                        └── _functional_response(B, j)   → F_ij  (n_spp,)  per consumer j
+                                └─ uses a_ij, h_ij set above
+```
+
 ## Requirements
 
 ```bash
@@ -351,8 +377,27 @@ Run with bad inputs to see detailed error messages.
 ## References
 
 - Binzer, A., Guill, C., Rall, B. C., & Brose, U. (2016). Interactive effects of warming, eutrophication and size structure: impacts on biodiversity and food-web structure. *Global Change Biology*, 22, 220–227.
+- Brose, U., Williams, R. J., & Martinez, N. D. (2006). Allometric scaling enhances stability in complex food webs. *Ecology Letters*, 9, 1228–1236.
+- Brown, J. H., Gillooly, J. F., Allen, A. P., Savage, V. M., & West, G. B. (2004). Toward a metabolic theory of ecology. *Ecology*, 85, 1771–1789.
 - Delmas, E., Brose, U., Gravel, D., Stouffer, D. B., & Poisot, T. (2017). Simulations of biomass dynamics in community food webs. *Methods in Ecology and Evolution*, 8, 881–886.
+- Gillooly, J. F., Brown, J. H., West, G. B., Savage, V. M., & Charnov, E. L. (2001). Effects of size and temperature on metabolic rate. *Science*, 293, 2248–2251.
+- Rall, B. C., Brose, U., Hartvig, M., Kalinkat, G., Schwarzmüller, F., Vucic-Pestic, O., & Petchey, O. L. (2012). Universal temperature and body-mass scaling of feeding rates. *Philosophical Transactions of the Royal Society B*, 367, 2923–2934.
+- Williams, R. J., & Martinez, N. D. (2004). Stabilization of chaotic and non-permanent food-web dynamics. *European Physical Journal B*, 38, 297–303.
 - Yodzis, P., & Innes, S. (1992). Body size and consumer-resource dynamics. *The American Naturalist*, 139, 1151–1175.
+
+### Parameter sources
+
+| Parameter(s) | Value(s) | Source |
+|---|---|---|
+| `r0`, `X0` | 0.5 | Yodzis & Innes (1992) |
+| `b_r`, `b_X` | −0.25 | Brown et al. (2004); Yodzis & Innes (1992) |
+| `a0`, `b_a_prey`, `b_a_pred` | 0.001, −0.5, 0.5 | Rall et al. (2012); Brose et al. (2006) |
+| `h0`, `b_h_prey`, `b_h_pred` | 0.01, 0.5, −0.5 | Rall et al. (2012) |
+| `e_plant`, `e_animal` | 0.45, 0.85 | Yodzis & Innes (1992) |
+| `R_opt` | 100 | Brose et al. (2006) |
+| `q_hill` | 2.0 | Williams & Martinez (2004) |
+| `E_a` | 0.65 eV | Brown et al. (2004); Gillooly et al. (2001) |
+| `k_B` | 8.617 × 10⁻⁵ eV/K | Fundamental constant (NIST CODATA) |
 
 ## License
 
