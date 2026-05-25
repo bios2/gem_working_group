@@ -105,10 +105,10 @@ def main(env_file: str, adj_file: str, traits_file: str,
         print(f"\n[STEP 6] Saving results to {output_dir}/...")
 
         # Extract spatial grid dimensions from env_df
-        cell_rows = env_df['row'].values.astype(int)
-        cell_cols = env_df['col'].values.astype(int)
-        n_rows = cell_rows.max() + 1
-        n_cols = cell_cols.max() + 1
+        cell_x = env_df['x'].values.astype(int)
+        cell_y = env_df['y'].values.astype(int)
+        n_x = cell_x.max() + 1
+        n_y = cell_y.max() + 1
 
         # ===== WRITE SIMULATION SUMMARY =====
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -125,7 +125,7 @@ def main(env_file: str, adj_file: str, traits_file: str,
             fsum.write(f"Number of time steps: {len(t_eval)}\n")
             fsum.write(f"Simulation duration : {t_max:.1f} days\n")
             fsum.write(f"Number of pixels   : {n_cells}\n")
-            fsum.write(f"Grid dimensions    : {n_rows} rows x {n_cols} cols\n\n")
+            fsum.write(f"Grid dimensions    : {n_x} x values x {n_y} y values\n\n")
 
             # --- Species traits ---
             fsum.write("SPECIES TRAITS\n")
@@ -189,8 +189,8 @@ def main(env_file: str, adj_file: str, traits_file: str,
         n_tp = len(t_eval)
         t_rep    = np.repeat(t_eval,                    n_cells * n_species)
         cell_rep = np.tile(np.repeat(np.arange(n_cells), n_species), n_tp)
-        x_rep    = np.tile(np.repeat(cell_cols,          n_species), n_tp)
-        y_rep    = np.tile(np.repeat(cell_rows,          n_species), n_tp)
+        x_rep    = np.tile(np.repeat(cell_x,              n_species), n_tp)
+        y_rep    = np.tile(np.repeat(cell_y,              n_species), n_tp)
         sp_rep   = np.tile(np.arange(n_species),         n_tp * n_cells)
         bio_rep  = B_traj.ravel()
 

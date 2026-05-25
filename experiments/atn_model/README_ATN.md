@@ -19,7 +19,7 @@ with spatial heterogeneity (Section 8, unscaled model from `ATN_model_spatiotemp
 
 | File | Format | What it contains |
 |---|---|---|
-| `env_mat.txt` | CSV | One row per spatial cell: `cell_id`, `temperature_K`, optional `K_plant_i` columns |
+| `env_mat.txt` | CSV | One row per spatial cell: `pixel_id`, `x`, `y`, `temperature_K`, optional `K_plant_i` columns |
 | `adj_mat.txt` | Space- or comma-separated | Square binary matrix (rows = resources, columns = consumers) |
 | `traits.txt` | CSV | One row per species: `species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2` |
 
@@ -41,16 +41,21 @@ B_traj, t_eval, model = main(
     'adj_mat.txt',
     'traits.txt',
     t_max=500,         # simulation length in days (default: 100)
-    output_dir='./results'
 )
 ```
 
 ### Step 3 — Check outputs
 
-Results are saved to `./atn_output/` (or the directory you specified):
+Results are saved to `atn_output/yyyymmddhhmmss/` (folder named with the run timestamp):
 
-- `biomass_trajectory.npy` — array of shape `(t_max + 1, n_cells, n_species)`
-- `time_points.npy` — time vector in days
+```
+atn_output/
+└── 20260525143012/
+    ├── simulation_summary.txt   ← species traits, grid info, all model constants
+    └── biomass.txt              ← long-format table (one row per pixel × time × species)
+```
+
+`biomass.txt` columns: `x`, `y`, `time_step`, `species_id`, `biomass`
 
 The console prints per-species final biomass and the fraction of cells where each species persists.
 
@@ -127,7 +132,7 @@ INPUT FILES:
         │                            │
     ┌───▼────────────┐  ┌───────────▼────┐
     │ Save output    │  │ Print summary   │
-    │ .npy files     │  │ (persistence,   │
+    │ biomass.txt +  │  │ (persistence,   │
     │                │  │  final biomass) │
     └────────────────┘  └─────────────────┘
 
@@ -177,7 +182,7 @@ For each cell: ATNModel.derivatives(B, t, cell_idx)
        ↓
 ODE solver (scipy.odeint) integrates forward in time
    ↓
-Biomass trajectory saved to .npy files
+Biomass trajectory saved to atn_output/yyyymmddhhmmss/biomass.txt (long format)
 ```
 
 ## Function Call Graph
@@ -228,7 +233,6 @@ B_traj, t_eval, model = main(
     'adj_mat.txt', 
     'traits.txt',
     t_max=500,           # simulate for 500 days
-    output_dir='./results'
 )
 ```
 
@@ -239,16 +243,18 @@ B_traj, t_eval, model = main(
 Environmental matrix with one row per spatial cell.
 
 **Columns:**
-- `cell_id` (index): unique cell identifier
+- `pixel_id` (index): unique pixel identifier
+- `x`: x coordinate of the pixel (non-negative integer, no duplicate `x, y` pairs)
+- `y`: y coordinate of the pixel (non-negative integer)
 - `temperature_K`: temperature in Kelvin (e.g., 293.15 = 20°C)
 - `K_plant_0`, `K_plant_1`, ...: carrying capacity for each basal species (optional)
 
 **Example:**
 ```
-cell_id,temperature_K,K_plant_0,K_plant_1,K_plant_2,K_plant_3,K_plant_4,K_plant_5,K_plant_6,K_plant_7,K_plant_8,K_plant_9
-0,293.15,100,100,100,100,100,100,100,100,100,100
-1,293.15,100,100,100,100,100,100,100,100,100,100
-2,288.15,90,90,90,90,90,90,90,90,90,90
+pixel_id,x,y,temperature_K,K_plant_0,K_plant_1,K_plant_2,K_plant_3,K_plant_4,K_plant_5,K_plant_6,K_plant_7,K_plant_8,K_plant_9
+0,0,0,293.15,100,100,100,100,100,100,100,100,100,100
+1,0,1,293.15,100,100,100,100,100,100,100,100,100,100
+2,0,2,288.15,90,90,90,90,90,90,90,90,90,90
 ```
 
 ### 2. **adj_mat.txt** (space or comma-separated)
@@ -309,37 +315,49 @@ species_id,body_mass_g,is_basal,initial_biomass_g_per_m2
 
 ## Output Files
 
-Saved to `./atn_output/` by default:
+Saved to `atn_output/yyyymmddhhmmss/` (one timestamped folder per run).
 
-- **biomass_trajectory.npy**: NumPy array of shape `(t_max + 1, n_cells, n_species)`
-  - Axis 0: time points
-  - Axis 1: spatial cells
-  - Axis 2: species indices
+### simulation_summary.txt
 
-- **time_points.npy**: NumPy array of time values (days)
+Human-readable record of the run:
+- Run timestamp
+- Number of species, time steps, pixels, and grid dimensions
+- Full species trait table (`species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2`)
+- All model constants from `config.py` with descriptions
+
+### biomass.txt
+
+Long-format table with one row per pixel × time step × species combination.
+
+**Columns:** `x`, `y`, `time_step`, `species_id`, `biomass`
+
+**Example rows:**
+```
+x y time_step species_id biomass
+0 0 0.0000 0 1.002345e+01
+0 0 0.0000 1 8.012456e+00
+...
+0 2 100.0000 39 5.123400e-03
+```
 
 ### Load and analyze results:
 
 ```python
-import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
-# Load data
-B_traj = np.load('atn_output/biomass_trajectory.npy')
-t = np.load('atn_output/time_points.npy')
+df = pd.read_csv('atn_output/20260525143012/biomass.txt', sep=' ')
 
-print(f"Shape: {B_traj.shape}")  # (t_max + 1, n_cells, n_species)
-
-# Plot species 0 in cell 0 over time
-plt.plot(t, B_traj[:, 0, 0])
+# Plot species 0 at pixel (0, 0) over time
+s0 = df[(df['species_id'] == 0) & (df['x'] == 0) & (df['y'] == 0)]
+plt.plot(s0['time_step'], s0['biomass'])
 plt.xlabel('Time (days)')
 plt.ylabel('Biomass (g/m²)')
-plt.title('Species 0, Cell 0')
 plt.show()
 
-# Final average biomass per species
-final_avg = B_traj[-1, :, :].mean(axis=0)
-print(f"Final biomass per species: {final_avg}")
+# Final mean biomass per species across all pixels
+final = df[df['time_step'] == df['time_step'].max()]
+print(final.groupby('species_id')['biomass'].mean())
 ```
 
 ## Configuration

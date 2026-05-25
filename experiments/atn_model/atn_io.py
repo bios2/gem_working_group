@@ -27,10 +27,10 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
     Read environmental matrix with validation.
 
     Expected format (CSV):
-      cell_id, row, col, temperature_K, K_plant_0, K_plant_1, ...
+      pixel_id, x, y, temperature_K, K_plant_0, K_plant_1, ...
 
     Returns:
-        env_df: DataFrame with cell_id index and columns row, col, temperature_K, K_*
+        env_df: DataFrame with pixel_id index and columns x, y, temperature_K, K_*
         temp_array: array of temperatures (N_cells,)
     """
     # Print diagnostic header
@@ -47,27 +47,27 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
         raise ValidationError(f"Failed to parse {filepath}: {e}")
 
     # Check for required spatial coordinate columns
-    for col in ('row', 'col'):
-        if col not in env_df.columns:
+    for coord in ('x', 'y'):
+        if coord not in env_df.columns:
             raise ValidationError(
-                f"Missing required column '{col}' in {filepath}.\n"
+                f"Missing required column '{coord}' in {filepath}.\n"
                 f"  Found columns: {list(env_df.columns)}\n"
-                f"  env_mat.txt must have columns: cell_id, row, col, temperature_K, ..."
+                f"  env_mat.txt must have columns: pixel_id, x, y, temperature_K, ..."
             )
 
-    # Validate row/col: must be non-negative integers with no duplicate (row, col) pairs
-    if (env_df['row'] < 0).any() or (env_df['col'] < 0).any():
-        raise ValidationError("'row' and 'col' values must be non-negative integers.")
-    dupes = env_df.duplicated(subset=['row', 'col'])
+    # Validate x/y: must be non-negative integers with no duplicate (x, y) pairs
+    if (env_df['x'] < 0).any() or (env_df['y'] < 0).any():
+        raise ValidationError("'x' and 'y' values must be non-negative integers.")
+    dupes = env_df.duplicated(subset=['x', 'y'])
     if dupes.any():
         raise ValidationError(
-            f"Duplicate (row, col) pairs found in {filepath}:\n"
-            f"  {env_df[dupes][['row', 'col']].values.tolist()}"
+            f"Duplicate (x, y) pairs found in {filepath}:\n"
+            f"  {env_df[dupes][['x', 'y']].values.tolist()}"
         )
 
-    n_rows = int(env_df['row'].max()) + 1
-    n_cols = int(env_df['col'].max()) + 1
-    print(f"  ✓ Loaded {len(env_df)} cells on a {n_rows}×{n_cols} grid")
+    n_x = int(env_df['x'].max()) + 1
+    n_y = int(env_df['y'].max()) + 1
+    print(f"  ✓ Loaded {len(env_df)} cells on a {n_x}×{n_y} grid")
 
     # Check for required column: temperature (must exist)
     if 'temperature_K' not in env_df.columns:
