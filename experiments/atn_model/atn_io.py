@@ -159,12 +159,12 @@ def read_adjacency_matrix(filepath: str, expected_n_species: Optional[int] = Non
         if len(orphans) > 5:
             print(f"    ... and {len(orphans)-5} more")
     
-    # Check for resources with no consumers (basal species should be this way)
+    # Check for species with no consumers
     resources_with_consumers = np.sum(adj_mat, axis=1)  # sum over consumers
     n_orphan_resources = np.sum(resources_with_consumers == 0)
     if n_orphan_resources > 0:
         orphans = np.where(resources_with_consumers == 0)[0]
-        print(f"  ℹ {n_orphan_resources} species have no consumers (OK for basal spp):")
+        print(f"  ℹ {n_orphan_resources} species have no consumers (may be expected):")
         for i in orphans[:5]:
             print(f"    Species {i}")
         if len(orphans) > 5:
