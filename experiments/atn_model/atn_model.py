@@ -88,20 +88,19 @@ class ATNModel:
         # Extract body masses for all species
         M = self.traits['body_mass_g'].values
         
-        # Create predator body mass column vector (for broadcasting)
-        M_pred = M[:, np.newaxis]  # shape (n_species, 1)
-        # Create prey body mass row vector (for broadcasting)
-        M_prey = M[np.newaxis, :]   # shape (1, n_species)
-        
-        # Compute body size ratio z = M_predator / (M_prey * R_opt)
-        z = M_pred / (M_prey * self.Ropt)
+        # Rows = resource/prey (i), columns = consumer/predator (j)
+        M_resource = M[:, np.newaxis]  # shape (n_species, 1) — resource mass varies by row
+        M_consumer = M[np.newaxis, :]  # shape (1, n_species) — consumer mass varies by column
+
+        # z[i,j] = M_consumer[j] / (M_resource[i] * R_opt)
+        z = M_consumer / (M_resource * self.Ropt)
         # Compute L-matrix: bell-shaped curve with sharpness controlled by gamma
         L = np.power(z * np.exp(1.0 - z), self.gamma)
-        
+
         # Remove weak links (below threshold)
         L[L < self.link_threshold] = 0
-        # Basal species cannot be consumers, so remove all outgoing links from basal species
-        L[self.basal_idx, :] = 0
+        # Basal species cannot be consumers: zero their columns
+        L[:, self.basal_idx] = 0
         
         # Return L-matrix masked by adjacency (only keep links where adj_mat = 1)
         return L * self.adj_mat
@@ -213,8 +212,9 @@ class ATNModel:
         
         # Precompute allometric rates for this cell (constant within one time step)
         # These matrices have shape (n_species, n_species)
-        M_prey = M[np.newaxis, :]  # row vector for broadcasting
-        M_pred = M[:, np.newaxis]  # column vector for broadcasting
+        # Convention: rows = resource/prey (i), columns = consumer/predator (j)
+        M_prey = M[:, np.newaxis]  # resource/prey mass varies by row
+        M_pred = M[np.newaxis, :]  # consumer/predator mass varies by column
         
         # Compute attack rate matrix a_ij
         self.a_ij = self._allometric_rate('attack', M_prey, M_pred, T_K) * self.adj_mat
@@ -235,13 +235,12 @@ class ATNModel:
             # This reduces growth when biomass approaches carrying capacity
             growth = r[i] * B[i] * (1.0 - B[i] / K_i) if K_i > 0 else 0
             
-            # Loss to consumers: sum over all consumers j eating species i
-            # This requires computing F_ij (feeding rate) for this species' consumers
-            loss_to_consumers = np.sum(B[self.consumer_idx] * self.a_ij[i, self.consumer_idx] * 
-                                      np.power(B[self.consumer_idx], self.q_hill) / 
-                                      (1.0 + np.sum(self.h_ij[:, self.consumer_idx] * 
-                                                   self.a_ij[:, self.consumer_idx] * 
-                                                   np.power(B[:, np.newaxis], self.q_hill), axis=0)))
+            # Loss to consumers: sum_j B[j] * F[i,j]
+            # F[i,j] uses B[i]^q (resource biomass) in the numerator and includes
+            # the interference term; delegate to _functional_response to avoid
+            # duplicating that logic incorrectly here.
+            loss_to_consumers = sum(B[j] * self._functional_response(B, j)[i]
+                                    for j in self.consumer_idx)
             
             # dB_i/dt = growth - metabolic_loss - loss_to_consumers
             dydt[i] = growth - X[i] * B[i] - loss_to_consumers
@@ -260,11 +259,11 @@ class ATNModel:
             # This is the biomass gained from eating all available resources
             gain = B[j] * np.sum(e_i * F_ij)
             
-            # Loss to consumers: sum over all j' that eat consumer j
-            # This is more complex as it involves predation on this consumer
-            loss = X[j] * B[j] + np.sum(B[self.consumer_idx] * F_ij[j] * 
-                                       (1.0 - np.eye(len(self.consumer_idx))[np.where(self.consumer_idx == j)[0][0]] 
-                                        if j in self.consumer_idx else 0))
+            # Loss to predators: sum_{j'} B[j'] * F[j, j']
+            # F[j, j'] = feeding rate of predator j' on focal species j.
+            loss_to_predators = sum(B[jp] * self._functional_response(B, jp)[j]
+                                    for jp in self.consumer_idx)
+            loss = X[j] * B[j] + loss_to_predators
             
             # dB_j/dt = consumption_gain - metabolic_loss - loss_to_predators
             dydt[j] = gain - loss
