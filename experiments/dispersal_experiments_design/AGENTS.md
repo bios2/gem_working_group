@@ -6,7 +6,7 @@ For now, two things must be different from the Ryser paper. First, dispersal wil
 
 ## Steps
 1 - Understand the Ryser paper
-2 - Code simple functions to implement basic diffusion on a grid. The function will take as an input a matrix of biomass, and will output the updated matrix of biomass after dispersal has occured
+2 - Code simple functions to implement basic diffusion on a grid. The function will take as an input a matrix of biomass, and will output the net immigration - emigration
 3 - Execute a simple simulation and output snapshots of the dispersal process for one species and validate that dispersal occurs as would be expected
 4 - Improve the dispersal function to also include dispersal triggers, as is done in the Ryser paper
 5 - Execute a simple simulation and output snapshots of the dispersal process for one species and validate that dispersal occurs as would be expected
@@ -15,7 +15,7 @@ For now, two things must be different from the Ryser paper. First, dispersal wil
 ## File architecture
 |-context : papers necessary to implement the spatial ATN model
 |-functions : function to implement the simulation
-|-thinking : 
+|-thinking : documentation
 |- scripts : scritps to execute simulation
 |-data : external data to calibrate the model (not needed for now)
 |-figures : visual outputs of the simulation model
@@ -24,7 +24,7 @@ For now, two things must be different from the Ryser paper. First, dispersal wil
 ## Constraints
 Re-read AGENTS.md and tell me what is still ambiguous and what you would need to know before answering and start coding.
 
-All code must be written in Python
+All code must be written in R
 
 Always answer in English
 
