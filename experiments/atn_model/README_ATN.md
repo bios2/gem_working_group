@@ -3,6 +3,68 @@
 Efficient Python implementation of the Allometric Trophic Network (ATN) model 
 with spatial heterogeneity (Section 8, unscaled model from `ATN_model_spatiotemporal_formulas_parameters.Rmd`).
 
+## Scripts
+
+| Script | Role | Run directly |
+|---|---|---|
+| `run_atn.py` | Main entry point: reads inputs, validates, integrates ODEs, saves results | Yes |
+| `test_atn.py` | Quick sanity check: runs a 10-day simulation on example files to verify setup | Yes |
+| `atn_model.py` | `ATNModel` class: all ODE dynamics | No (imported by other scripts) |
+| `atn_io.py` | File reading and 20+ validation checks | No (imported by other scripts) |
+| `config.py` | Default allometric and numerical parameters | No (imported by other scripts) |
+
+## Running with your own data
+
+### Step 1 — Prepare three input files
+
+| File | Format | What it contains |
+|---|---|---|
+| `env_mat.txt` | CSV | One row per spatial cell: `cell_id`, `temperature_K`, optional `K_plant_i` columns |
+| `adj_mat.txt` | Space- or comma-separated | Square binary matrix (rows = resources, columns = consumers) |
+| `traits.txt` | CSV | One row per species: `species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2` |
+
+See the **Input Files** section below for column details and examples.
+
+### Step 2 — Run the simulation
+
+```bash
+python run_atn.py env_mat.txt adj_mat.txt traits.txt
+```
+
+Optional arguments (pass via the Python API):
+
+```python
+from run_atn import main
+
+B_traj, t_eval, model = main(
+    'env_mat.txt',
+    'adj_mat.txt',
+    'traits.txt',
+    t_max=500,         # simulation length in days (default: 100)
+    n_timesteps=500,   # number of saved time points (default: 1000)
+    output_dir='./results'
+)
+```
+
+### Step 3 — Check outputs
+
+Results are saved to `./atn_output/` (or the directory you specified):
+
+- `biomass_trajectory.npy` — array of shape `(n_timesteps, n_cells, n_species)`
+- `time_points.npy` — time vector in days
+
+The console prints per-species final biomass and the fraction of cells where each species persists.
+
+### Validate your setup first
+
+Before a long run, use `test_atn.py` to confirm your files are readable and the model initialises correctly:
+
+```bash
+python test_atn.py
+```
+
+This runs a 10-day simulation and checks for NaN values and shape consistency.
+
 ## Model Overview
 
 ```
