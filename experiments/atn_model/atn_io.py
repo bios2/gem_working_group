@@ -25,17 +25,17 @@ class ValidationWarning:
 def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
     """
     Read environmental matrix with validation.
-    
+
     Expected format (CSV):
-      cell_id, temperature_K, carrying_capacity_plant0, carrying_capacity_plant1, ...
-    
+      cell_id, row, col, temperature_K, K_plant_0, K_plant_1, ...
+
     Returns:
-        env_df: DataFrame with cell_id, temperature_K, and carrying_capacities
+        env_df: DataFrame with cell_id index and columns row, col, temperature_K, K_*
         temp_array: array of temperatures (N_cells,)
     """
     # Print diagnostic header
     print("\n[ENV_MAT] Reading environmental matrix...")
-    
+
     # Try to read CSV file with first column as index
     try:
         env_df = pd.read_csv(filepath, index_col=0)
@@ -45,14 +45,37 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
     except Exception as e:
         # Raise if CSV parsing fails
         raise ValidationError(f"Failed to parse {filepath}: {e}")
-    
+
+    # Check for required spatial coordinate columns
+    for col in ('row', 'col'):
+        if col not in env_df.columns:
+            raise ValidationError(
+                f"Missing required column '{col}' in {filepath}.\n"
+                f"  Found columns: {list(env_df.columns)}\n"
+                f"  env_mat.txt must have columns: cell_id, row, col, temperature_K, ..."
+            )
+
+    # Validate row/col: must be non-negative integers with no duplicate (row, col) pairs
+    if (env_df['row'] < 0).any() or (env_df['col'] < 0).any():
+        raise ValidationError("'row' and 'col' values must be non-negative integers.")
+    dupes = env_df.duplicated(subset=['row', 'col'])
+    if dupes.any():
+        raise ValidationError(
+            f"Duplicate (row, col) pairs found in {filepath}:\n"
+            f"  {env_df[dupes][['row', 'col']].values.tolist()}"
+        )
+
+    n_rows = int(env_df['row'].max()) + 1
+    n_cols = int(env_df['col'].max()) + 1
+    print(f"  ✓ Loaded {len(env_df)} cells on a {n_rows}×{n_cols} grid")
+
     # Check for required column: temperature (must exist)
     if 'temperature_K' not in env_df.columns:
         raise ValidationError(
             f"Missing required column 'temperature_K' in {filepath}.\n"
             f"  Found columns: {list(env_df.columns)}"
         )
-    
+
     # Extract temperature range and check for realistic values
     temp_min = env_df['temperature_K'].min()
     temp_max = env_df['temperature_K'].max()
@@ -62,12 +85,10 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
             f"Temperature out of realistic range: {temp_min:.2f}–{temp_max:.2f} K.\n"
             f"  Expected ~260–330 K (−13°C to 57°C)."
         )
-    
-    # Print success message with cell count
-    print(f"  ✓ Loaded {len(env_df)} cells")
+
     # Print temperature range in both Kelvin and Celsius
     print(f"  ✓ Temperature range: {temp_min:.2f}–{temp_max:.2f} K ({temp_min-273.15:.1f}–{temp_max-273.15:.1f}°C)")
-    
+
     # Look for optional carrying capacity columns (K_plant_0, K_plant_1, etc.)
     K_cols = [c for c in env_df.columns if c.startswith('K_')]
     if K_cols:
@@ -80,7 +101,7 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
     else:
         # Warn if no K columns found (will use default later)
         print(f"  ⚠ No carrying capacity columns (K_*) found; will use default.")
-    
+
     # Check for missing values (NaN) in any column
     if env_df.isnull().any().any():
         n_nan = env_df.isnull().sum().sum()  # count total NaN values
@@ -88,7 +109,7 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
             f"Found {n_nan} NaN values in environment matrix.\n"
             f"  NaN columns: {list(env_df.columns[env_df.isnull().any()])}"
         )
-    
+
     # Return DataFrame and extracted temperature array
     return env_df, env_df['temperature_K'].values
 
