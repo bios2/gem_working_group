@@ -1,6 +1,14 @@
 # External dependencies cloned by init.sh -- do not commit
 experiments/sunday_vegetation_experiments_design/context/MadingleyR/
 
+# Python virtual environments
+.venv/
+**/.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
 # R session artefacts
 .Rhistory
 .RData
