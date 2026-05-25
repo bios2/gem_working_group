@@ -41,7 +41,6 @@ B_traj, t_eval, model = main(
     'adj_mat.txt',
     'traits.txt',
     t_max=500,         # simulation length in days (default: 100)
-    n_timesteps=500,   # number of saved time points (default: 1000)
     output_dir='./results'
 )
 ```
@@ -50,7 +49,7 @@ B_traj, t_eval, model = main(
 
 Results are saved to `./atn_output/` (or the directory you specified):
 
-- `biomass_trajectory.npy` — array of shape `(n_timesteps, n_cells, n_species)`
+- `biomass_trajectory.npy` — array of shape `(t_max + 1, n_cells, n_species)`
 - `time_points.npy` — time vector in days
 
 The console prints per-species final biomass and the fraction of cells where each species persists.
@@ -229,7 +228,6 @@ B_traj, t_eval, model = main(
     'adj_mat.txt', 
     'traits.txt',
     t_max=500,           # simulate for 500 days
-    n_timesteps=500,     # save 500 output points
     output_dir='./results'
 )
 ```
@@ -313,7 +311,7 @@ species_id,body_mass_g,is_basal,initial_biomass_g_per_m2
 
 Saved to `./atn_output/` by default:
 
-- **biomass_trajectory.npy**: NumPy array of shape `(n_timesteps, n_cells, n_species)`
+- **biomass_trajectory.npy**: NumPy array of shape `(t_max + 1, n_cells, n_species)`
   - Axis 0: time points
   - Axis 1: spatial cells
   - Axis 2: species indices
@@ -330,7 +328,7 @@ import matplotlib.pyplot as plt
 B_traj = np.load('atn_output/biomass_trajectory.npy')
 t = np.load('atn_output/time_points.npy')
 
-print(f"Shape: {B_traj.shape}")  # (n_timesteps, n_cells, n_species)
+print(f"Shape: {B_traj.shape}")  # (t_max + 1, n_cells, n_species)
 
 # Plot species 0 in cell 0 over time
 plt.plot(t, B_traj[:, 0, 0])
@@ -416,7 +414,7 @@ where:
 
 ## Performance Tips
 
-- **Coarser output:** Lower `n_timesteps` for faster runs
+- **Shorter simulation:** Lower `t_max` for faster runs
 - **Temperature off:** Set `use_temperature: False` to skip temperature calculations
 - **High connectivity:** Increase `link_threshold` to skip weak interactions
 - **Parallel cells:** Future: run cells in parallel with `concurrent.futures`
