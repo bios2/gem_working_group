@@ -1,0 +1,10 @@
+# External dependencies cloned by init.sh -- do not commit
+experiments/sunday_vegetation_experiments_design/context/MadingleyR/
+
+# R session artefacts
+.Rhistory
+.RData
+.Rproj.user/
+
+# macOS
+.DS_Store
