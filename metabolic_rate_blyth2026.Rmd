@@ -1,0 +1,331 @@
+---
+title: "Calculating Vertebrate Metabolic Rates from Blyth et al. (2026)"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Overview
+
+Blyth et al. (2026, *Ecology Letters*) updated allometric normalisation constants for
+metabolism and production using >1000 genera and Bayesian Phylogenetic Least Squares
+(PGLS). This document explains how to use their Table 1 intercept estimates to predict
+**basal** and **field** metabolic rates (whole-body or mass-specific) for an unknown
+vertebrate, classified as either ectotherm or endotherm.
+
+---
+
+## The General Allometric Equation
+
+Metabolic rate scales with body mass and temperature as (Blyth et al. Eq. 1):
+
+$$X \, [\text{W}] = e^{C} \cdot M^{b} \cdot e^{-E_a / kT}$$
+
+For the **mass-specific** rate (Blyth et al. Eq. 2):
+
+$$x \, [\text{W g}^{-1}] = e^{C} \cdot M^{b-1} \cdot e^{-E_a / kT}$$
+
+This is derived from the PGLS regression fitted on temperature-corrected data:
+
+$$\ln\!\left(X \cdot e^{E_a / kT}\right) = C + b \cdot \ln(M)$$
+
+### Parameters
+
+| Symbol | Description | Value / Source |
+|--------|-------------|----------------|
+| $C$ | Allometric intercept in ln(W) | From Table 1 (Blyth column) |
+| $M$ | Body mass | **grams** |
+| $b$ | Allometric scaling exponent | From Table S3 (varies by group; ~0.75 if unavailable) |
+| $E_a$ | Activation energy | 0.63 eV |
+| $k$ | Boltzmann's constant | 8.617 × 10⁻⁵ eV K⁻¹ |
+| $T$ | Temperature | Kelvin — body temp (endotherms), environmental temp (ectotherms) |
+
+**Temperature defaults for endotherms** (if body temperature is unknown):
+mammals = 37°C (310 K); birds = 39°C (312 K).
+
+---
+
+## Table 1 Intercepts for Vertebrates
+
+The PGLS intercepts ($C$, in ln(W)) from Blyth et al. Table 1 for the two vertebrate
+groups relevant to a mystery vertebrate:
+
+```{r intercepts}
+intercepts <- data.frame(
+  group            = c("Ectothermic vertebrate", "Endothermic vertebrate"),
+  C_blyth          = c(17.4,  19.53),
+  CRI_lower        = c(16.46, 18.93),
+  CRI_upper        = c(18.28, 20.13),
+  C_brose          = c(18.18, 19.5),   # Previous standard (Brose et al. 2006)
+  ax_brose         = c(0.88,  3.22),   # Brose BEFW coefficient
+  ax_blyth         = c(0.274, 2.27)    # Blyth BEFW coefficient
+)
+
+knitr::kable(
+  intercepts[, c("group", "C_blyth", "CRI_lower", "CRI_upper", "C_brose",
+                 "ax_brose", "ax_blyth")],
+  col.names = c("Group", "C Blyth [ln(W)]", "95% CRI lower",
+                "95% CRI upper", "C Brose [ln(W)]",
+                "a_x Brose", "a_x Blyth"),
+  digits = 3,
+  caption = "Table 1 intercepts and BEFW coefficients from Blyth et al. (2026).
+             Blyth intercepts are lower than Brose for ectothermic vertebrates,
+             reflecting phylogenetic correction and broader sampling."
+)
+```
+
+Note that the Blyth intercepts are **lower** than the Brose et al. (2006) values for
+ectothermic vertebrates (17.4 vs. 18.18 ln(W)), reflecting the phylogenetic correction
+and broader taxonomic sampling. For endotherms the estimates are similar.
+
+---
+
+## Basal vs. Field Metabolic Rate
+
+The data used by Blyth et al. are:
+
+- **BMR** (basal metabolic rate) for endotherms
+- **SMR** (standard metabolic rate) for ectotherms
+
+Both are **resting/basal** rates. To obtain **field metabolic rate (FMR)**, multiply by
+3, following Nagy (1987) as cited in Blyth et al.:
+
+$$\text{FMR} = 3 \times \text{BMR (or SMR)}$$
+
+This ×3 factor is already incorporated into the BEFW model coefficients ($a_x$) in
+Table 1, but is **not** in the raw intercept $C$. When using $C$ directly in the
+equation above, you obtain the resting rate; multiply by 3 for FMR.
+
+---
+
+## R Implementation
+
+### Core functions
+
+```{r functions}
+k_bolt <- 8.617e-5  # Boltzmann constant (eV/K)
+Ea     <- 0.63      # Activation energy (eV); Brown et al. 2004
+
+#' Whole-body metabolic rate in Watts (BMR for endotherms, SMR for ectotherms)
+#'
+#' @param M    Body mass in grams
+#' @param C    Allometric intercept in ln(W) from Table 1
+#' @param b    Allometric exponent (use ~0.75 if Table S3 unavailable)
+#' @param T_K  Temperature in Kelvin
+#' @return Metabolic rate in Watts
+bmr_smr_W <- function(M, C, b, T_K) {
+  exp(C) * M^b * exp(-Ea / (k_bolt * T_K))
+}
+
+#' Mass-specific metabolic rate in W/g
+#'
+#' @inheritParams bmr_smr_W
+#' @return Mass-specific metabolic rate in W/g
+bmr_smr_mass_specific <- function(M, C, b, T_K) {
+  exp(C) * M^(b - 1) * exp(-Ea / (k_bolt * T_K))
+}
+
+#' Field metabolic rate (whole-body, Watts)
+fmr_W <- function(M, C, b, T_K) {
+  3 * bmr_smr_W(M, C, b, T_K)
+}
+
+#' Field metabolic rate (mass-specific, W/g)
+fmr_mass_specific <- function(M, C, b, T_K) {
+  3 * bmr_smr_mass_specific(M, C, b, T_K)
+}
+```
+
+### Group-specific parameters
+
+```{r params}
+# Intercepts from Table 1 (Blyth et al. 2026, PGLS median)
+C_ecto_vert <- 17.4
+C_endo_vert <- 19.53
+
+# Exponent b: from Table S3 (supplementary). If unavailable, use classical ~0.75.
+# Replace these with Table S3 values when available.
+b_ecto_vert <- 0.75
+b_endo_vert <- 0.75
+
+# Reference temperatures (Kelvin)
+T_mammal <- 273.15 + 37  # 310.15 K
+T_bird   <- 273.15 + 39  # 312.15 K
+T_ecto   <- 273.15 + 20  # 293.15 K — example environmental temperature
+```
+
+### Example predictions
+
+```{r examples}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Define a range of body masses (grams)
+masses_g <- 10^seq(-2, 6, by = 0.25)  # 0.01 g to 1,000 kg
+
+results <- bind_rows(
+  # Ectothermic vertebrate at 20°C
+  data.frame(
+    M_g        = masses_g,
+    group      = "Ectotherm (20°C)",
+    BMR_W      = bmr_smr_W(masses_g, C_ecto_vert, b_ecto_vert, T_ecto),
+    FMR_W      = fmr_W(masses_g, C_ecto_vert, b_ecto_vert, T_ecto)
+  ),
+  # Endothermic vertebrate — mammal (37°C)
+  data.frame(
+    M_g        = masses_g,
+    group      = "Endotherm — mammal (37°C)",
+    BMR_W      = bmr_smr_W(masses_g, C_endo_vert, b_endo_vert, T_mammal),
+    FMR_W      = fmr_W(masses_g, C_endo_vert, b_endo_vert, T_mammal)
+  ),
+  # Endothermic vertebrate — bird (39°C)
+  data.frame(
+    M_g        = masses_g,
+    group      = "Endotherm — bird (39°C)",
+    BMR_W      = bmr_smr_W(masses_g, C_endo_vert, b_endo_vert, T_bird),
+    FMR_W      = fmr_W(masses_g, C_endo_vert, b_endo_vert, T_bird)
+  )
+)
+
+# Print table for a few representative masses
+representative <- results %>%
+  filter(round(log10(M_g), 2) %in% c(-2, 0, 2, 4, 6)) %>%
+  mutate(
+    M_kg    = M_g / 1000,
+    BMR_mW  = BMR_W * 1000,
+    FMR_mW  = FMR_W * 1000
+  ) %>%
+  select(group, M_kg, BMR_mW, FMR_mW)
+
+knitr::kable(
+  representative,
+  col.names = c("Group", "Mass (kg)", "BMR/SMR (mW)", "FMR (mW)"),
+  digits    = 3,
+  caption   = "Predicted whole-body basal/standard (BMR/SMR) and field (FMR)
+               metabolic rates at representative body masses using Blyth et al.
+               (2026) intercepts and b = 0.75."
+)
+```
+
+### Plot: metabolic rate vs. body mass
+
+```{r plot, fig.width=8, fig.height=5}
+results_long <- results %>%
+  pivot_longer(cols = c(BMR_W, FMR_W), names_to = "rate_type", values_to = "rate_W") %>%
+  mutate(
+    rate_type = recode(rate_type, BMR_W = "BMR/SMR", FMR_W = "FMR"),
+    M_kg = M_g / 1000
+  )
+
+ggplot(results_long, aes(x = M_kg, y = rate_W, colour = group, linetype = rate_type)) +
+  geom_line(size = 0.9) +
+  scale_x_log10(
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_y_log10(
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_linetype_manual(values = c("BMR/SMR" = "solid", "FMR" = "dashed")) +
+  labs(
+    x        = "Body mass (kg)",
+    y        = "Metabolic rate (W)",
+    colour   = "Group",
+    linetype = "Rate type",
+    title    = "Predicted vertebrate metabolic rates",
+    subtitle = "Blyth et al. (2026) intercepts; b = 0.75; FMR = 3 × BMR/SMR"
+  ) +
+  theme_bw(base_size = 13)
+```
+
+---
+
+## Propagating Uncertainty from the CRI
+
+The 95% credible intervals on $C$ from the Bayesian PGLS can be directly used to
+bracket uncertainty on predictions:
+
+```{r uncertainty, fig.width=8, fig.height=5}
+# Ectothermic vertebrate example with CRI propagation
+C_ecto_low  <- 16.46
+C_ecto_high <- 18.28
+
+df_uncertainty <- data.frame(M_g = masses_g) %>%
+  mutate(
+    BMR_median = bmr_smr_W(M_g, C_ecto_vert, b_ecto_vert, T_ecto),
+    BMR_low    = bmr_smr_W(M_g, C_ecto_low,  b_ecto_vert, T_ecto),
+    BMR_high   = bmr_smr_W(M_g, C_ecto_high, b_ecto_vert, T_ecto),
+    M_kg       = M_g / 1000
+  )
+
+ggplot(df_uncertainty, aes(x = M_kg)) +
+  geom_ribbon(aes(ymin = BMR_low, ymax = BMR_high), alpha = 0.25, fill = "orange") +
+  geom_line(aes(y = BMR_median), colour = "orange", size = 1) +
+  scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  labs(
+    x        = "Body mass (kg)",
+    y        = "SMR (W)",
+    title    = "Ectothermic vertebrate SMR with 95% CRI uncertainty",
+    subtitle = "Shaded band spans the 95% credible interval on intercept C (Table 1)"
+  ) +
+  theme_bw(base_size = 13)
+```
+
+---
+
+## Step-by-Step Recipe
+
+For a mystery vertebrate of known body mass and approximate temperature:
+
+1. **Classify** as ectotherm or endotherm
+2. **Choose $C$** from Table 1 (Blyth median; use CRI for uncertainty bounds):
+   - Ectothermic vertebrate: $C = 17.4$ [95% CRI: 16.46–18.28]
+   - Endothermic vertebrate: $C = 19.53$ [95% CRI: 18.93–20.13]
+3. **Set $b$** from Table S3 of Blyth et al. (2026); use $b \approx 0.75$ if unavailable
+4. **Set $T$** in Kelvin:
+   - Mammals: 310.15 K (37°C); Birds: 312.15 K (39°C)
+   - Ectotherms: environmental temperature
+5. **Compute resting rate** (W): $X = e^C \cdot M^b \cdot e^{-E_a/kT}$
+6. **For FMR**: multiply by 3
+7. **For mass-specific**: use exponent $b - 1$ in place of $b$
+
+---
+
+## Important Caveats
+
+- The **exponent $b$** is in Table S3 (supplementary only); $b \approx 0.75$ is a
+  reasonable fallback but the paper did not fix this — group-specific values will
+  differ.
+- The Blyth intercepts are generally **lower** than Brose et al. (2006), predicting
+  lower metabolic rates and consequently higher biomass and species persistence in
+  food web models.
+- **Endothermy is not always binary**: some fish (e.g., opah, bluefin tuna) exhibit
+  regional endothermy and may not fit cleanly into the ectothermic vertebrate category.
+- The **BEFW model coefficients** $a_x$ in Table 1 (0.274 for ecto vert, 2.27 for
+  endo vert) are *not* the same as $e^C$ — they have been further transformed via a
+  unit conversion factor ($C_\text{fac} = 51.7$) and the FMR ×3 factor for use in
+  the bioenergetic food web model. Use the raw intercepts $C$ for predicting
+  metabolic rates in Watts.
+
+---
+
+## References
+
+- Blyth, P.S.A. et al. (2026). The Critical Role of Coefficients: Updating Allometric
+  Normalisation Constants for Modern Ecology and Modelling. *Ecology Letters*, 29,
+  e70330. https://doi.org/10.1111/ele.70330
+- Brose, U. et al. (2006). Consumer–resource body-size relationships in natural food
+  webs. *Ecology*, 87, 2411–2417.
+- Nagy, K.A. (1987). Field metabolic rate and food requirement scaling in mammals and
+  birds. *Ecological Monographs*, 57, 111–128.
+- Brown, J.H. et al. (2004). Toward a metabolic theory of ecology. *Ecology*, 85,
+  1771–1789.
