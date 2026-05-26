@@ -3,6 +3,10 @@
 Efficient Python implementation of the Allometric Trophic Network (ATN) model 
 with spatial heterogeneity (Section 8, unscaled model from `ATN_model_spatiotemporal_formulas_parameters.Rmd`).
 
+Basal species growth is driven by externally supplied NPP following the vegetation equation
+from Harfoot et al. (2014) Text S1, with a Michaelis-Menten competitive partition between
+herbs and trees (see `context/vegetation.md`).
+
 ## Scripts
 
 | Script | Role | Run directly |
@@ -19,9 +23,9 @@ with spatial heterogeneity (Section 8, unscaled model from `ATN_model_spatiotemp
 
 | File | Format | What it contains |
 |---|---|---|
-| `env_mat.txt` | CSV | One row per spatial cell: `pixel_id`, `x`, `y`, `temperature_K`, optional `K_plant_i` columns |
+| `env_mat.txt` | CSV | One row per spatial cell: `pixel_id`, `x`, `y`, `temperature_K`, `NPP` |
 | `adj_mat.txt` | Space- or comma-separated | Square binary matrix (rows = resources, columns = consumers) |
-| `traits.txt` | CSV | One row per species: `species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2` |
+| `traits.txt` | CSV | One row per species: `species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2`, `vegetation_type` |
 
 See the **Input Files** section below for column details and examples.
 
@@ -55,7 +59,7 @@ atn_output/
     └── biomass.txt              ← long-format table (one row per pixel × time × species)
 ```
 
-`biomass.txt` columns: `x`, `y`, `time_step`, `species_id`, `biomass`
+`biomass.txt` columns: `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
 
 The console prints per-species final biomass and the fraction of cells where each species persists.
 
@@ -80,8 +84,8 @@ INPUT FILES:
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
 │ env_mat.txt  │  │ adj_mat.txt  │  │ traits.txt   │
 │              │  │              │  │              │
-│ Temp, K per  │  │ Food-web     │  │ Body mass,   │
-│ cell         │  │ links        │  │ metabolism   │
+│ Temp, NPP    │  │ Food-web     │  │ Body mass,   │
+│ per cell     │  │ links        │  │ veg. type    │
 └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
        │                 │                 │
        └─────────────────┼─────────────────┘
@@ -108,6 +112,7 @@ INPUT FILES:
             │  Stores:               │
             │  - Species traits      │
             │  - Food-web adjacency  │
+            │  - Herb/tree indices   │
             │  - Allometric params   │
             └─────────┬──────────────┘
                       │
@@ -119,10 +124,10 @@ INPUT FILES:
     └───┬───┘     └───┬───┘     └──┬────┘
         │             │            │
         ├─────────────┼────────────┤  For each cell:
-        │             │            │  1. Get temperature T_K
+        │             │            │  1. Get temperature T_K and NPP
         │  ODE        │  ODE       │  2. Compute allometric rates
         │ SOLVER      │ SOLVER     │  3. Integrate dB/dt for each species
-        │ (scipy.     │ (scipy.    │  4. Apply logistic growth (basal)
+        │ (scipy.     │ (scipy.    │  4. Apply NPP-driven growth (basal)
         │ odeint)     │ odeint)    │  5. Apply Holling Type II (consumers)
         │             │            │
     ┌───▼───────────────────────────▼──┐
@@ -133,16 +138,21 @@ INPUT FILES:
     ┌───▼────────────┐  ┌───────────▼────┐
     │ Save output    │  │ Print summary   │
     │ biomass.txt +  │  │ (persistence,   │
-    │                │  │  final biomass) │
+    │ summary.txt    │  │  final biomass) │
     └────────────────┘  └─────────────────┘
 
 
-EQUATIONS (per cell g):
+EQUATIONS (per cell, g/m²/day):
 
-Basal species i:
-  dB_i/dt = r_i(M_i,T) * B_i * (1 - B_i/K_i)      [logistic growth]
+Basal species i (herb or tree):
+  dB_i/dt = G_i                                    [NPP-driven growth]
             - X_i(M_i,T) * B_i                     [metabolism]
             - Σ_j B_j F_ji(B,M,T)                  [herbivory]
+
+  where G_i = NPP * ψ * (1 - f_struct_i) * C_i
+
+  Herb:  C_i = α / (α + B_trees)
+  Tree:  C_i = B_i / (α + B_trees)
 
 Consumer species j:
   dB_j/dt = B_j * Σ_i e_i F_ij(B,M,T)             [feeding gain]
@@ -155,7 +165,6 @@ Functional response (Holling Type II):
          1 + c_j B_j + Σ_k h_kj(M_k,M_j,T) a_kj B_k^q
 
 Allometric rates:
-  r_i = r0 * M_i^(-0.25) * exp[-E(T₀-T)/(k_B T T₀)]
   X_i = X0 * M_i^(-0.25) * exp[-E(T₀-T)/(k_B T T₀)]
   a_ij = a0 * M_i^(-0.5) * M_j^(0.5) * exp[-E(T₀-T)/(k_B T T₀)]
   h_ij = h0 * M_i^(0.5) * M_j^(-0.5)
@@ -166,16 +175,16 @@ PARAMETER FLOW:
 config.py (default parameters)
    ↓
 ATNModel.__init__() extracts rates:
-   r0, b_r, X0, b_X, a0, b_a_prey, b_a_pred, h0, etc.
+   psi, f_struct, alpha_herbs, X0, b_X, a0, b_a_prey, b_a_pred, h0, etc.
    ↓
 ATNModel.run_all_cells()
    ↓
 For each cell: ATNModel.derivatives(B, t, cell_idx)
-   ├─ Compute T_K from env_df[cell_idx]
+   ├─ Compute T_K and NPP from env_df[cell_idx]
    ├─ Compute a_ij(M, T) and h_ij(M, T) matrices
-   ├─ Compute X(M, T) and r(M, T) vectors
+   ├─ Compute X(M, T) vector
    ├─ For each basal species i:
-   │  └─ dB_i/dt = logistic_growth(B_i, r_i, K_i) - loss
+   │  └─ dB_i/dt = vegetation_growth(B, NPP, C_i) - loss
    ├─ For each consumer species j:
    │  └─ dB_j/dt = feeding_gain(Σ e_i F_ij) - loss
    └─ Return dydt vector
@@ -190,6 +199,8 @@ Biomass trajectory saved to atn_output/yyyymmddhhmmss/biomass.txt (long format)
 ```
 ATNModel.__init__(adj_mat, traits_df, env_df, config)
 │  Reads adj_mat, traits_df, env_df; extracts allometric constants from config
+│  Identifies herb_idx and tree_idx from vegetation_type trait
+│  Loads per-species f_struct (with global fallback from config)
 │
 ├── _L_matrix()                    body-size feeding kernel L_ij
 │       └─ returns L * adj_mat     (food-web topology with size-matching)
@@ -205,7 +216,10 @@ ATNModel.__init__(adj_mat, traits_df, env_df, config)
                         ├── _allometric_rate('attack')    → a_ij  (n_spp × n_spp)
                         ├── _allometric_rate('handling')  → h_ij  (n_spp × n_spp)
                         ├── _metabolic_rate()             → X     (n_spp,)
-                        ├── _basal_growth_rate()          → r     (n_spp,)
+                        ├── _vegetation_growth(B, cell)  → G     (n_spp,)
+                        │       reads NPP from env_df[cell_idx]
+                        │       herb: C_i = α/(α + B_trees)
+                        │       tree: C_i = B[i]/(α + B_trees)
                         │
                         └── _functional_response(B, j)   → F_ij  (n_spp,)  per consumer j
                                 └─ uses a_ij, h_ij set above
@@ -242,19 +256,19 @@ B_traj, t_eval, model = main(
 
 Environmental matrix with one row per spatial cell.
 
-**Columns:**
+**Required columns:**
 - `pixel_id` (index): unique pixel identifier
 - `x`: x coordinate of the pixel (non-negative integer, no duplicate `x, y` pairs)
 - `y`: y coordinate of the pixel (non-negative integer)
 - `temperature_K`: temperature in Kelvin (e.g., 293.15 = 20°C)
-- `K_plant_0`, `K_plant_1`, ...: carrying capacity for each basal species (optional)
+- `NPP`: net primary productivity in g C m⁻² day⁻¹ (must be positive)
 
 **Example:**
 ```
-pixel_id,x,y,temperature_K,K_plant_0,K_plant_1,K_plant_2,K_plant_3,K_plant_4,K_plant_5,K_plant_6,K_plant_7,K_plant_8,K_plant_9
-0,0,0,293.15,100,100,100,100,100,100,100,100,100,100
-1,0,1,293.15,100,100,100,100,100,100,100,100,100,100
-2,0,2,288.15,90,90,90,90,90,90,90,90,90,90
+pixel_id,x,y,temperature_K,NPP
+0,0,0,293.15,3.5
+1,0,1,293.15,3.2
+2,0,2,288.15,2.8
 ```
 
 ### 2. **adj_mat.txt** (space or comma-separated)
@@ -285,33 +299,27 @@ Species trait table: one row per species.
 - `body_mass_g`: body mass in grams (positive)
 - `is_basal`: 1 if basal (plant), 0 if consumer (animal)
 - `initial_biomass_g_per_m2`: starting biomass density in g/m²
+- `vegetation_type`: `'herb'` or `'tree'` for all basal species (ignored for consumers)
 
-**Optional but recommended columns:**
-- `metabolic_rate_base`: if provided, overrides model default
-- `metabolic_rate_exponent`: if provided, overrides model default
-- `assimilation_plant`: efficiency when eating plants (0–1)
-- `assimilation_animal`: efficiency when eating animals (0–1)
-- `hill_exponent`: Hill coefficient for functional response (>0)
+**Optional columns:**
+- `f_struct`: fraction of NPP allocated to structural tissue (0–1); defaults to `f_struct_default` in `config.py` if absent
 
 **Example:**
 ```
-species_id,body_mass_g,is_basal,initial_biomass_g_per_m2
-0,1.7,1,10.0
-1,3.4,1,8.0
-2,6.0,1,5.0
-3,16.7,1,3.0
-4,30.4,1,2.0
-5,32.8,1,2.0
-6,43.5,1,1.5
-7,346.5,1,0.5
-8,364.7,1,0.5
-9,810.8,1,0.3
-10,126.97,0,1.0
-11,301.86,0,0.8
-12,345.40,0,0.6
+species_id,body_mass_g,is_basal,initial_biomass_g_per_m2,vegetation_type
+0,1.7,1,10.0,herb
+1,3.4,1,8.0,herb
+2,6.0,1,5.0,tree
+3,16.7,1,3.0,tree
+4,30.4,0,2.0,
+5,32.8,0,2.0,
 ...
-39,617906,0,0.1
+39,617906,0,0.1,
 ```
+
+> **Note:** `vegetation_type` must be `'herb'` or `'tree'` for every row where `is_basal == 1`. The column must be present; an absent column raises a `ValidationError`.
+>
+> **Trees at zero initial biomass:** If all trees start at zero, `C_tree_i = 0` and tree species receive no NPP input. Trees require a positive `initial_biomass_g_per_m2` to grow.
 
 ## Output Files
 
@@ -329,15 +337,15 @@ Human-readable record of the run:
 
 Long-format table with one row per pixel × time step × species combination.
 
-**Columns:** `x`, `y`, `time_step`, `species_id`, `biomass`
+**Columns:** `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
 
 **Example rows:**
 ```
-x y time_step species_id biomass
-0 0 0.0000 0 1.002345e+01
-0 0 0.0000 1 8.012456e+00
+pixel_id x y time_step species_id biomass
+0 0 0 0.0000 0 1.002345e+01
+0 0 0 0.0000 1 8.012456e+00
 ...
-0 2 100.0000 39 5.123400e-03
+2 0 2 100.0000 39 5.123400e-03
 ```
 
 ### Load and analyze results:
@@ -366,32 +374,41 @@ Edit `config.py` to modify parameters:
 
 ```python
 CONFIG = {
+    # Vegetation growth (NPP-driven, Harfoot et al. 2014 Text S1)
+    'psi': 9.813,              # C-to-wet-matter conversion (g wet / g C)
+    'f_struct_default': 0.3,   # default fraction of NPP to structural tissue
+    'alpha_herbs_default': 1.0,# half-saturation constant for herb/tree competition (g/m²)
+
     # Allometric parameters
-    'r0': 0.5,            # basal growth normalization
-    'b_r': -0.25,         # basal growth exponent
     'X0': 0.5,            # metabolic rate normalization
     'b_X': -0.25,         # metabolic exponent
     'a0': 0.001,          # attack rate normalization
     'b_a_prey': -0.5,     # attack rate prey exponent
     'b_a_pred': 0.5,      # attack rate predator exponent
     'h0': 0.01,           # handling time normalization
-    
+    'b_h_prey': 0.5,      # handling time prey exponent
+    'b_h_pred': -0.5,     # handling time predator exponent
+
     # Functional response
     'q_hill': 2.0,        # Hill exponent (Type II ≈ 2)
+    'interference': 0.0,  # consumer interference coefficient
     'R_opt': 100.0,       # optimal predator/prey mass ratio
     'gamma': 2.0,         # L-matrix sharpness
-    
+    'link_threshold': 0.01,
+
     # Efficiency
     'e_plant': 0.45,      # plant assimilation
     'e_animal': 0.85,     # animal assimilation
-    
+
     # Temperature dependence
     'use_temperature': True,
     'T0_K': 293.15,       # reference temp (20°C)
+    'k_B': 8.617e-5,      # Boltzmann constant (eV/K)
     'E_a': 0.65,          # activation energy (eV)
-    
+
     # Extinction
-    'ext_threshold': 1e-6,  # biomass below this → extinct
+    'ext_threshold': 1e-6,       # biomass below this → extinct
+    'extinction_timescale': 0.1, # decay timescale for extinct species (days)
 }
 ```
 
@@ -400,35 +417,33 @@ CONFIG = {
 ### Equations
 
 **Basal species (plants):**
-$$\frac{dB_i}{dt} = B_i r_i G_i - X_i B_i - \sum_j B_j F_{ij}$$
 
-where:
-- $G_i = 1 - B_i/K_i$ (logistic growth regulation)
-- $r_i$ = basal growth rate
-- $X_i$ = metabolic loss rate
-- $F_{ij}$ = feeding rate of consumer $j$ on resource $i$
+$$\frac{dB_i}{dt} = G_i - X_i B_i - \sum_j B_j F_{ij}$$
+
+where $G_i$ is the NPP-driven leaf biomass growth rate (Harfoot et al. 2014 Text S1):
+
+$$G_i = NPP \cdot \psi \cdot (1 - f_{\text{struct},i}) \cdot C_i$$
+
+with the Michaelis-Menten competitive partition between vegetation types:
+
+$$C_{\text{herb}} = \frac{\alpha}{\alpha + B_{\text{trees}}} \qquad C_{\text{tree}} = \frac{B_i}{\alpha + B_{\text{trees}}}$$
 
 **Consumers (animals):**
 $$\frac{dB_j}{dt} = B_j \sum_i e_i F_{ij} - X_j B_j - \sum_k B_k F_{jk}$$
 
-where:
-- $e_i$ = assimilation efficiency on resource $i$
+where $e_i$ = assimilation efficiency on resource $i$.
 
 ### Allometric scaling
 
-All biological rates scale with body mass $M$ and temperature $T$:
+Metabolic and attack rates scale with body mass $M$ and temperature $T$:
 
-$$p(M, T) = p_0 M^b \exp\left(\frac{-E(T_0 - T)}{k_B T T_0}\right)$$
+$$p(M, T) = p_0 M^b \exp\left(\frac{-E_a (T_0 - T)}{k_B T T_0}\right)$$
 
 ### Functional response (Type II, Holling):
 
 $$F_{ij} = \frac{a_{ij} B_i^q}{1 + c_j B_j + \sum_k h_{kj} a_{kj} B_k^q}$$
 
-where:
-- $a_{ij}$ = attack rate
-- $q$ = Hill exponent
-- $h_{ij}$ = handling time
-- $c_j$ = consumer interference
+where $a_{ij}$ = attack rate, $q$ = Hill exponent, $h_{ij}$ = handling time, $c_j$ = consumer interference.
 
 ## Performance Tips
 
@@ -439,16 +454,18 @@ where:
 
 ## Validation Features
 
-The system includes comprehensive checks:
+The system includes comprehensive checks (all in `atn_io.py`):
 
 ✓ File existence & CSV parsing  
-✓ Required columns in each file  
+✓ Required columns in each file (`NPP` in env_mat, `vegetation_type` in traits)  
+✓ `vegetation_type` values are `'herb'` or `'tree'` for all basal species  
+✓ NPP values are positive (range printed so unit errors are caught early)  
+✓ Temperature range printed (catches Celsius-vs-Kelvin errors before they corrupt allometric rates)  
 ✓ Species count consistency across files  
 ✓ No self-loops in adjacency matrix  
 ✓ Basal species don't consume  
 ✓ Body mass, biomass, and efficiency ranges  
 ✓ Parameter completeness and realism  
-✓ Temperature range checking  
 
 Run with bad inputs to see detailed error messages.
 
@@ -459,7 +476,10 @@ Run with bad inputs to see detailed error messages.
 - Brown, J. H., Gillooly, J. F., Allen, A. P., Savage, V. M., & West, G. B. (2004). Toward a metabolic theory of ecology. *Ecology*, 85, 1771–1789.
 - Delmas, E., Brose, U., Gravel, D., Stouffer, D. B., & Poisot, T. (2017). Simulations of biomass dynamics in community food webs. *Methods in Ecology and Evolution*, 8, 881–886.
 - Gillooly, J. F., Brown, J. H., West, G. B., Savage, V. M., & Charnov, E. L. (2001). Effects of size and temperature on metabolic rate. *Science*, 293, 2248–2251.
-- Rall, B. C., Brose, U., Hartvig, M., Kalinkat, G., Schwarzmüller, F., Vucic-Pestic, O., & Petchey, O. L. (2012). Universal temperature and body-mass scaling of feeding rates. *Philosophical Transactions of the Royal Society B*, 367, 2923–2934.
+- Harfoot, M. B. J., et al. (2014). Emergent global patterns of ecosystem structure and function from a mechanistic general ecosystem model. *PLOS Biology*, 12, e1001841. *(Text S1: terrestrial plant model equations)*
+- Kattge, J., et al. (2011). TRY – a global database of plant traits. *Global Change Biology*, 17, 2905–2935. *(source of ψ = 9.813 g wet / g C)*
+- Kraus, D., et al. (2022). Coupling the Madingley general ecosystem model to LPJ-GUESS vegetation model for more realistic vegetation dynamics. *Ecological Modelling*.
+- Rall, B. C., et al. (2012). Universal temperature and body-mass scaling of feeding rates. *Philosophical Transactions of the Royal Society B*, 367, 2923–2934.
 - Williams, R. J., & Martinez, N. D. (2004). Stabilization of chaotic and non-permanent food-web dynamics. *European Physical Journal B*, 38, 297–303.
 - Yodzis, P., & Innes, S. (1992). Body size and consumer-resource dynamics. *The American Naturalist*, 139, 1151–1175.
 
@@ -467,8 +487,10 @@ Run with bad inputs to see detailed error messages.
 
 | Parameter(s) | Value(s) | Source |
 |---|---|---|
-| `r0`, `X0` | 0.5 | Yodzis & Innes (1992) |
-| `b_r`, `b_X` | −0.25 | Brown et al. (2004); Yodzis & Innes (1992) |
+| `psi` | 9.813 g wet / g C | Kattge et al. (2011) via Harfoot et al. (2014) Text S1 |
+| `f_struct_default` | 0.3 | De Kauwe et al. (2014); Harfoot et al. (2014) Text S1 |
+| `alpha_herbs_default` | 1.0 g/m² | Michaelis-Menten partition (see `context/vegetation.md`) |
+| `X0`, `b_X` | 0.5, −0.25 | Yodzis & Innes (1992); Brown et al. (2004) |
 | `a0`, `b_a_prey`, `b_a_pred` | 0.001, −0.5, 0.5 | Rall et al. (2012); Brose et al. (2006) |
 | `h0`, `b_h_prey`, `b_h_pred` | 0.01, 0.5, −0.5 | Rall et al. (2012) |
 | `e_plant`, `e_animal` | 0.45, 0.85 | Yodzis & Innes (1992) |
