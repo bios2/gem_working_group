@@ -14,7 +14,7 @@
 # M is body mass in grams, b is the allometric exponent (taken from Table S3 in Blyth et al.):
 # Ea = 0.63 eV (activation energy), k = 8.617e-5 eV/K (Boltzmann constant),
 # T is body temperature in Kelvin for endotherms or environmental temperature for ectotherms.
-# Multiply resting rates by 3 to obtain field metabolic rate (FMR; after Nagy 1987 and Brose et al. 2008)
+# Multiply resting rates by 3 to obtain field metabolic rate (FMR; after Brose et al. 2008)
 
 
 calculate_metabolism <- function(mass_g, temp_C, group = c("ectotherm", "endotherm"), fmr = FALSE ) {
