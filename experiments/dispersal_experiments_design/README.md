@@ -19,7 +19,7 @@ To facilitate integration with other teams, here is our code architecture
 
 ### Function 1 : Emigration rate
 #### Inputs 
-$a$ : Maximal dispersal rate (parameter, depends on external trait data)
+$a$ : Maximal dispersal rate (parameter, depends on external trait data such as method of movement, e.g. flight, crawling; and body size, e.g. mouse vs antelope)
 $b$ : Dispersal sensitivity to environmental conditions, can also be seen as dispersal plasticity (paramater, arbitrary value)
 $x_i$ : Metabolism of species i (output of the ATN)
 $v_{i,z}$ : Net population growth rate (output of the ATN)
@@ -33,6 +33,7 @@ $E_{i,z}$ : matrix of emigration rates for species i
 Species list
 Trait data (body mass, other dispersal related traits)
 Allometric coefficients
+Perhaps temperature to bound area in which a species can disperse? 
 
 #### Dependencies
 Function to compute metabolism ($x_i$)
@@ -40,15 +41,18 @@ Function to compute net population growth rate ($v_{i,z}$)
 
 #### Test cases
 Compare dispersal distance over time of a bird (high $a$) vs a lizard (low $a$)
-Compare dispersal distane over time high metabolism species, small species (e.g. hummingbird) vs a low metabolism, large species (e.g. black bear)
+Compare dispersal distane over time high mass-specific metabolism species, small species (e.g. hummingbird) vs a low mass-specific metabolism, large species (e.g. black bear)
 
 #### Integration tests
 Compare static resources (baseline scenario) with resources shifting northwards (climate change scenario)
 
 Test model behaviour (stability, chaotic dynamic) when an herbivore and its consumer interact
 
+Test what happens when there is a major disturbance (e.g. a forest fire) that knocks out a patch of high productivity area
+
 #### Minimal implementation
-Density-independant dispersal on 1-Dimensional homogenous grid
+1. Density-independant dispersal on 1-Dimensional homogenous grid
+2. Dispersal that depends solely on method of travel (e.g. flying, crawling)
 
 ### Function 2 : Immigration rate
 #### Inputs 
