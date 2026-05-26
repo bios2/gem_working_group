@@ -52,7 +52,9 @@ Test what happens when there is a major disturbance (e.g. a forest fire) that kn
 
 #### Minimal implementation
 1. Density-independant dispersal on 1-Dimensional homogenous grid
-2. Dispersal that depends solely on method of travel (e.g. flying, crawling)
+2. Density-independant dispersal on 2-Dimensional homogenous grid
+3. Dispersal that depends solely on method of travel (e.g. flying, crawling, parameter $a$)
+4. Density-dependant dispersal on homogenous grid
 
 ### Function 2 : Immigration rate
 #### Inputs 
