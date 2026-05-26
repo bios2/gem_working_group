@@ -14,4 +14,4 @@ This function implements one step of density-dependent dispersal. It takes into 
 Note : this gives the same result as the diffuse.R function, if b=0. (disp_rate = a/2)
 
 ## run_diffusion_simulation.R
-This function runs a simulation for one species for density_independent dispersal. It takes as an input an initial distribution for a species (biomass matrix), the same set of parameters as diffuse_density_dependent.R and number of time steps required for the simulation. It outputs a list of matrices, where each list index corresponds to the system state for one species at a specific time step.
+This function runs a simulation for one species for density dependent dispersal. It takes as an input an initial distribution for a species (biomass matrix), the same set of parameters as diffuse_density_dependent.R and number of time steps required for the simulation. It outputs a list of matrices, where each list index corresponds to the system state for one species at a specific time step.
