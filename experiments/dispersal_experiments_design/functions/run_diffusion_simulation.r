@@ -16,7 +16,7 @@
 run_diffusion_simulation <- function(init_pop, n_row, n_col,
                                      disp_rate, n_time) {
   # pre-compute neighbour counts once; reused at every time step
-  nbr_count <- build_rook_nbr_count_matrix(n_row, n_col)
+  nbr_count <- enforce_boundary_conditions(n_row, n_col)
 
   # terra cell order is row-major; byrow = TRUE preserves that in the matrix
   pop_grid <- matrix(init_pop, nrow = n_row, ncol = n_col, byrow = TRUE)
