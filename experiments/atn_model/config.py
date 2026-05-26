@@ -10,11 +10,6 @@ CONFIG = {
     # ===== ALLOMETRIC RATE CONSTANTS =====
     # These control how biological rates scale with body mass
     
-    'r0': 0.5,           # Basal (plant) maximum growth rate normalization (per day)
-                         # Actual growth: r_i = r0 * M_i^(b_r)
-    'b_r': -0.25,        # Basal growth mass exponent (~-0.25 from metabolic level boundaries hypothesis)
-                         # Negative exponent: smaller plants grow faster
-    
     'X0': 0.5,           # Metabolic loss rate normalization constant (per day)
                          # Actual loss: X_i = X0 * M_i^(b_X)
     'b_X': -0.25,        # Metabolic loss mass exponent (~-0.25, same as growth)
@@ -66,12 +61,21 @@ CONFIG = {
                          # Higher than plants due to similar biochemistry
                          # 85% of animal biomass consumed converts to predator biomass
     
-    # ===== CARRYING CAPACITY =====
-    # Limit on plant biomass (typically from nutrient availability)
-    
-    'K_default': 100.0,  # Default carrying capacity for plants (g/m²)
-                         # Used if cell-specific K values not provided in env_mat.txt
-    
+    # ===== VEGETATION GROWTH =====
+    # Parameters for NPP-driven basal species growth (vegetation.md equation)
+
+    'psi': 9.813,            # Carbon to wet matter conversion factor (g wet matter / g C)
+                             # From Kattge et al. (2011) via Harfoot et al. (2014) Text S1
+
+    'f_struct_default': 0.3, # Default fractional allocation of NPP to structural tissue
+                             # Used when f_struct is absent from traits.txt
+                             # ~30% structural allocation (De Kauwe et al. 2014)
+
+    'alpha_herbs_default': 1.0,  # Default half-saturation constant for herb competitive partition
+                                 # C_herb = alpha / (alpha + B_trees); units match B_trees (g/m²)
+                                 # Used when alpha_herbs is absent from traits.txt
+
+
     # ===== TEMPERATURE DEPENDENCE =====
     # These parameters control temperature-dependent rate modifications
     # Following Boltzmann-Arrhenius kinetics: rate ∝ exp(-E/k_B/T)

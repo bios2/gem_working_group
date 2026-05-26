@@ -67,6 +67,8 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
 
     n_x = int(env_df['x'].max()) + 1
     n_y = int(env_df['y'].max()) + 1
+    # Print grid dimensions so the user can verify the spatial domain loaded as expected
+    # before committing to a potentially long simulation run
     print(f"  ✓ Loaded {len(env_df)} cells on a {n_x}×{n_y} grid")
 
     # Check for required column: temperature (must exist)
@@ -86,21 +88,29 @@ def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
             f"  Expected ~260–330 K (−13°C to 57°C)."
         )
 
-    # Print temperature range in both Kelvin and Celsius
+    # Print temperature range in both Kelvin and Celsius so the user can immediately spot
+    # unit errors (e.g. Celsius supplied instead of Kelvin) or unrealistic outlier cells
+    # before they silently distort all allometric and metabolic rates in the simulation
     print(f"  ✓ Temperature range: {temp_min:.2f}–{temp_max:.2f} K ({temp_min-273.15:.1f}–{temp_max-273.15:.1f}°C)")
 
-    # Look for optional carrying capacity columns (K_plant_0, K_plant_1, etc.)
-    K_cols = [c for c in env_df.columns if c.startswith('K_')]
-    if K_cols:
-        # If found, report count and range
-        print(f"  ✓ Found {len(K_cols)} carrying capacity columns")
-        K_vals = env_df[K_cols].values.flatten()  # flatten to 1D array
-        K_vals = K_vals[K_vals > 0]  # filter to positive values only
-        if len(K_vals) > 0:
-            print(f"    K range: {K_vals.min():.2e}–{K_vals.max():.2e}")
-    else:
-        # Warn if no K columns found (will use default later)
-        print(f"  ⚠ No carrying capacity columns (K_*) found; will use default.")
+    # Check for required NPP column (single value per cell, no monthly breakdown)
+    if 'NPP' not in env_df.columns:
+        raise ValidationError(
+            f"Missing required column 'NPP' in {filepath}.\n"
+            f"  env_mat.txt must contain an 'NPP' column with one value per cell.\n"
+            f"  Found columns: {list(env_df.columns)}"
+        )
+    # Validate that all NPP values are strictly positive
+    npp_vals = env_df['NPP'].values
+    if np.any(npp_vals <= 0):
+        raise ValidationError(
+            f"All NPP values must be positive. "
+            f"Found {np.sum(npp_vals <= 0)} non-positive values: "
+            f"{npp_vals[npp_vals <= 0].tolist()}"
+        )
+    # Print NPP range so the user can catch order-of-magnitude unit errors
+    # (e.g. kg C vs g C) before they propagate into nonsensical basal biomass dynamics
+    print(f"  ✓ NPP range: {npp_vals.min():.2e}–{npp_vals.max():.2e}")
 
     # Check for missing values (NaN) in any column
     if env_df.isnull().any().any():
@@ -239,14 +249,44 @@ def read_traits(filepath: str, expected_n_species: Optional[int] = None) -> pd.D
             f"  Found: {list(traits_df.columns)}"
         )
     
-    # Check NaN
-    if traits_df.isnull().any().any():
-        n_nan_per_col = traits_df.isnull().sum()
-        bad_cols = n_nan_per_col[n_nan_per_col > 0]
+    # Check for required columns: vegetation_type must be present
+    if 'vegetation_type' not in traits_df.columns:
         raise ValidationError(
-            f"Found NaN values in traits:\n"
-            + "\n".join([f"  {col}: {count} NaN" for col, count in bad_cols.items()])
+            f"Missing required column 'vegetation_type' in {filepath}.\n"
+            f"  Each basal species must have vegetation_type set to 'herb' or 'tree'.\n"
+            f"  Found columns: {list(traits_df.columns)}"
         )
+    # Validate that vegetation_type is only set on basal species and has valid values
+    basal_mask = traits_df['is_basal'] == 1
+    veg_types = traits_df.loc[basal_mask, 'vegetation_type']
+    invalid_types = veg_types[~veg_types.isin(['herb', 'tree'])]
+    if len(invalid_types) > 0:
+        raise ValidationError(
+            f"vegetation_type must be 'herb' or 'tree' for basal species. "
+            f"Found invalid values: {invalid_types.tolist()}"
+        )
+    # Non-basal species should not have vegetation_type set
+    consumer_veg = traits_df.loc[~basal_mask, 'vegetation_type'] if 'vegetation_type' in traits_df.columns else pd.Series(dtype=str)
+    non_null_consumers = consumer_veg.dropna()
+    if len(non_null_consumers) > 0:
+        print(f"  ⚠ vegetation_type set on {len(non_null_consumers)} consumer species (will be ignored)")
+    n_herbs = (veg_types == 'herb').sum()
+    n_trees = (veg_types == 'tree').sum()
+    print(f"  ✓ vegetation_type: {n_herbs} herb species, {n_trees} tree species")
+
+    # Check NaN only in required numeric columns (optional columns like f_struct may have NaN)
+    required_cols_for_nan = ['body_mass_g', 'is_basal', 'initial_biomass_g_per_m2']
+    for col in required_cols_for_nan:
+        if col in traits_df.columns and traits_df[col].isnull().any():
+            raise ValidationError(
+                f"Found NaN values in required column '{col}' in {filepath}."
+            )
+
+    # Report optional vegetation trait columns if present
+    if 'f_struct' in traits_df.columns:
+        # f_struct may have NaN (will use config default for those species)
+        n_present = traits_df['f_struct'].notna().sum()
+        print(f"  ✓ f_struct: {n_present}/{n_spp} species have per-species values (rest use config default)")
     
     # Check body mass
     M = traits_df['body_mass_g'].values
@@ -411,9 +451,11 @@ def check_parameter_completeness(config: Dict) -> bool:
     print("\n[CONFIG] Checking parameter completeness...")
     
     required_params = {
-        # Allometric
-        'r0': 'basal growth normalization',
-        'b_r': 'basal growth exponent',
+        # Vegetation growth (NPP-driven, vegetation.md equation)
+        'psi':                 'carbon to wet matter conversion factor (g wet / g C)',
+        'f_struct_default':    'default fractional NPP allocation to structural tissue',
+        'alpha_herbs_default': 'half-saturation constant for herb/tree competitive partition (g/m2)',
+        # Allometric — consumers and metabolic loss only (no basal logistic growth)
         'X0': 'metabolic rate normalization',
         'b_X': 'metabolic exponent',
         'a0': 'attack rate normalization',
@@ -431,8 +473,6 @@ def check_parameter_completeness(config: Dict) -> bool:
         # Efficiency
         'e_plant': 'plant assimilation efficiency',
         'e_animal': 'animal assimilation efficiency',
-        # Carrying capacity
-        'K_default': 'default carrying capacity',
         # Temperature
         'use_temperature': 'use temperature dependence',
         'T0_K': 'reference temperature',
@@ -456,17 +496,11 @@ def check_parameter_completeness(config: Dict) -> bool:
     # Check parameter ranges
     warnings = []
     
-    if config['r0'] <= 0:
-        warnings.append(f"r0={config['r0']} should be positive (basal growth rate)")
-    
     if config['X0'] <= 0:
         warnings.append(f"X0={config['X0']} should be positive (metabolic rate)")
     
     if config['a0'] <= 0:
         warnings.append(f"a0={config['a0']} should be positive (attack rate)")
-    
-    if not (-1 < config['b_r'] < 0):
-        warnings.append(f"b_r={config['b_r']} is outside typical range [-1, 0]")
     
     if not (-1 < config['b_X'] < 0):
         warnings.append(f"b_X={config['b_X']} is outside typical range [-1, 0]")
