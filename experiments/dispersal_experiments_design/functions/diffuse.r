@@ -1,4 +1,4 @@
-# diffuse_step_vectorised.r
+# diffuse.r
 # Advances the population grid by one density-independent diffusion step.
 #
 # Each cell loses (disp_rate / 4) * n_nbrs of its population, where n_nbrs is
@@ -6,27 +6,27 @@
 # without an adjacent cell). Individuals disperse equally to all neighbours.
 #
 # Arguments:
-#   pop_grid  - n_row x n_col numeric matrix of current populations
-#   disp_rate - fraction of individuals dispersing per step (e.g. 0.05)
-#   nbr_count - n_row x n_col integer matrix from build_rook_nbr_count_matrix()
+#   biomass_matrix  - n_row x n_col numeric matrix of current populations
+#   disp_rate - Dispersal coefficient
+#   boundary_number - n_row x n_col integer matrix from build_rook_nbr_count_matrix()
 #
-# Returns an n_row x n_col numeric matrix of updated populations.
+# Returns an n_row x n_col numeric matrix of updated biomass immigration - emigration.
 #
 # Implementation uses 2D matrix shifts instead of per-cell loops, making it
 # efficient for large rasters.
 
-diffuse_step_vectorised <- function(pop_grid, disp_rate, nbr_count) {
-  n_row <- nrow(pop_grid)
-  n_col <- ncol(pop_grid)
+diffuse <- function(biomass_matrix, disp_rate, boundary_number) {
+  n_row <- nrow(biomass_matrix)
+  n_col <- ncol(biomass_matrix)
 
   # biomass each cell sends toward each one of its four potential neighbours
-  flux_per_edge <- pop_grid * (disp_rate / 4)
+  flux_per_edge <- biomass_matrix * (disp_rate / 4)
 
   # total biomass leaving a cell equals flux_per_edge times the number of
   # actual neighbours (edge/corner cells have fewer, so they lose less)
-  flux_out <- flux_per_edge * nbr_count
+  flux_out <- flux_per_edge * boundary_number
 
-  # zero-padding strips used to enforce hard-wall boundaries during shifts
+  # zero-padding strips used to enforce reflective boundary conditions during shifts
   zero_row <- matrix(0, nrow = 1,     ncol = n_col)
   zero_col <- matrix(0, nrow = n_row, ncol = 1)
 
@@ -37,6 +37,6 @@ diffuse_step_vectorised <- function(pop_grid, disp_rate, nbr_count) {
   from_west  <- cbind(zero_col,               flux_per_edge[, -n_col])  # col to the left sends right
   from_east  <- cbind(flux_per_edge[, -1],    zero_col)                 # col to the right sends left
 
-  # net population: subtract total outflow, add inflow from all four directions
-  return(pop_grid - flux_out + from_north + from_south + from_west + from_east)
+  # net biomass: subtract total outflow, add inflow from all four directions
+  return(- flux_out + from_north + from_south + from_west + from_east)
 }
