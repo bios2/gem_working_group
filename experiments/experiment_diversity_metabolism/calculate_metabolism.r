@@ -3,6 +3,11 @@
 # Source: Blyth et al. (2026). The Critical Role of Coefficients: Updating Allometric
 #   Normalisation Constants for Modern Ecology and Modelling. Ecology Letters, 29, e70330.
 #   https://doi.org/10.1111/ele.70330
+#Gillooly, J. F., Gomez, J. P., & Mavrodiev, E. V. (2017). 
+#A broad-scale comparison of aerobic activity levels in vertebrates: Endotherms versus ectotherms.
+# Proceedings of the Royal Society B: Biological Sciences, 284(1849), 20162328.
+# https://doi.org/10.1098/rspb.2016.2328
+
 #
 # Metabolic rate scales with body mass and temperature via the allometric equation:
 #   X [W]      = exp(C) * M^b * exp(-Ea / kT)          (whole-body)
