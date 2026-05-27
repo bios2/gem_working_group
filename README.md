@@ -73,7 +73,7 @@ pip install -e .                 # install the project and its dependencies
 pytest                           # confirm everything works
 ```
 
-`pip install -e .` installs the project in **editable mode**: changes you make to the source code take effect immediately without reinstalling. The `.venv/` folder is local to your machine and is gitignored — never commit it. Each team member recreates it from `pyproject.toml`.
+`pip install -e .[dev]` installs the project in **editable mode**: changes you make to the source code take effect immediately without reinstalling. The `.venv/` folder is local to your machine and is gitignored — never commit it. Each team member recreates it from `pyproject.toml`. [dev] is an optional extra that includes development dependencies like `pytest`.
 
 VS Code detects automatically a virtual environment in the project folder and recommends you to activate it when you start working with a virtual environment in your workspace. 
 
