@@ -23,14 +23,70 @@ A second goal is to document how AI coding agents can support collaborative ecol
 
 [📅 Logistics](https://usherbrooke.sharepoint.com/:f:/r/sites/ielabworkinggroup/Documents%20partages/logistics?csf=1&web=1&e=nsdYNf)
 
-## Collaboration guidelines
+## General Collaboration guidelines
 
-This repo is where all notes, papers, and documents for the duration of the row group will live. The main branch is protected, so please create a new branch for any changes and submit a pull request.
+- This repo is where all notes, papers, and documents for the duration of the row group will live
+- The `main` branch is protected, so please create a new branch for any changes and submit a pull request.
 
-### Experiments and prototyping
+## Project structure
+
+
+
+## Python packaging and environment
+
+<!-- Dependancies -->
+
+<!-- .toml -->
+
+<!-- .venv and and getting started with venv and pip install -e . -->
+
+
+## Style guide and naming conventions
+
+<!-- Style guide, casing for modules, functions and naming -->
+
+
+## Experiments and prototyping
 
 The `experiments` folder is where we will develop and share code for model prototyping, testing, and experiments. Each experiment should have its own subfolder with a README describing the purpose, methods, and results.
 
 Naming convention for experiment folders: `DAY_GROUPNAME_experimentNAME`. Example - `sunday_atn_bylot_experiment1`.
 
 We recommend using Jupyter notebooks for prototyping and documentation, but feel free to use other formats as needed. The key is to keep everything organized and well-documented for future reference.
+
+## Model development
+
+<!-- Implementation details for processes into module from processes contract -->
+
+- <!-- Big idea -->
+- Numpy structures ...
+- ...
+
+## Input data files
+
+
+## Geographic grid
+
+
+## Simulation engine
+
+<!-- Describing Alex's engine state management species registry. There should be a doc describing that  -->
+
+- State management
+- <!-- Processes adapters  -->
+- ...Broadcasting
+- Initialization
+
+
+## Running simulations
+
+Inside experiments folder. Store relevant data.
+
+---
+<!-- 
+- Dependancies modules (ex. metabolism) that do not return biomass but are reused by multiple processes. Should be specified in processes contract. Processes should return biomass delta, or biomass delta and other outputs (e.g. fluxes, rates, etc.) that are relevant to the process and can be used by other processes or for analysis. Their outputs should be stored in broadcasting-friendly data structures that can be easily accessed by other processes and engine.
+- How to handle and store simulation runs (notebooks ?,  saved outputs ?) and how to make them accessible to the team. Make minimal requirements for reproducibility of runs (e.g. saving the random seed, saving the configuration file, etc.). Naming convention for runs and outputs with date and time and description.
+- Input data. Script to download and preprocess input data (e.g. environmental data, species traits, etc.) and store them in a standardized format that can be easily accessed by the engine and processes. We recommend using geotiff to store spatial data and csv or json for tabular data. We also recommend using a standardized directory structure for input data (e.g. data/raw, data/processed, etc.) and a naming convention for files (e.g. data/raw/environmental_data_2024-06-01.tif). Local gitignores for large .tiff datasets that are not stored in the repository but can be downloaded and processed by the script.
+- Initialization scripts for the engine (e.g. to set up the grid, load initial conditions, species list and traits, load the input data). To be described in engine section. Should be modular and reusable for different runs and configurations. Should also include error handling and logging to facilitate debugging and tracking of runs.
+
+ -->
