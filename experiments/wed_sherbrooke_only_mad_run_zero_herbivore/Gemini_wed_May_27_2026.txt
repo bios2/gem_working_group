@@ -1,0 +1,45 @@
+Google (Gemini)
+
+AI Overview
+
+
+
+When running the Madingley Model, the output files created depend on how you run the simulation. If you are using the MadingleyR R package, you can either keep the data stored dynamically within your R session or explicitly write files to a designated output folder. 
+
+
+GitHub Pages documentation
+ +2
+If you specify an output folder, Madingley creates .csv files and spatial .tif rasters, typically consisting of the following:
+
+
+1. Tabular Output Files (.csv)
+
+These files contain the underlying ecological data and statistics, typically including:
+
+	•	Cohort Properties: Binned statistics for animal cohorts (collections of organisms with identical functional traits and body mass) detailing biomass, abundance, and functional group definitions.
+	•	Stock Properties: Binned statistics detailing the biomass and characteristics of photo-autotrophs (plants).
+	•	Summary Statistics: Process-level diagnostics such as monthly cohort consumption, mortality, and overall population counts.  
+	•	GitHub Pages documentation  +4
+
+2. Spatial Output Files (.tif)
+
+If you are running the model on a global or regional geographic grid, Madingley generates geospatial maps. These include: 
+
+
+Figshare
+
+	•	Biomass Density Maps: Rasters showing the average or standard deviation of biomass for specific feeding guilds (e.g., carnivores, herbivores, omnivores) and autotrophs.
+	•	Abundance Density Maps: Rasters indicating the distribution and number of individuals across functional types.  
+	•	Figshare 
+
+3. R Object Outputs (If run entirely within R)
+
+When working through MadingleyR, the core C++ engine dynamically creates raw text files for internal computation and stores them in your R temporary folder. When the simulation finishes, it returns a structured R list containing all resulting cohort and stock definitions, which you can use to immediately plot spatial abundances, biomass, and trophic pyramids directly in your R workspace. 
+
+
+Wiley Online Library
+ +1
+Note: You can easily retrieve the full file paths and names generated during your simulation by calling the list_output_paths() function on your madingley_run() output object. 
+
+
+GitHub Pages documentation
