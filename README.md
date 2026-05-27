@@ -28,6 +28,10 @@ A second goal is to document how AI coding agents can support collaborative ecol
 - This repo is where all notes, papers, and documents for the duration of the row group will live
 - The `main` branch is protected, so please create a new branch for any changes and submit a pull request.
 
+## AI coding assistants
+
+[AGENTS.md](AGENTS.md) (mirrored as [CLAUDE.md](CLAUDE.md)) tells AI coding agents — Claude Code, Codex, Cursor, … — how to help on this project: how to communicate with you, what conventions to enforce, when to push back proactively, and what they must not do (no inventing process mechanics, no unfamiliar abstractions, no commits or pushes without asking). Read it before you let an agent touch the repo, so you know the behaviour to expect and what to correct. If you disagree with anything in there, open a PR against `AGENTS.md` — it is the source of truth, and `CLAUDE.md` is kept in sync from it.
+
 ## Project structure
 
 ```
