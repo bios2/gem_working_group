@@ -166,9 +166,6 @@ def main(env_file: str, adj_file: str, traits_file: str,
                 # Functional response
                 'q_hill':              'Hill exponent for functional response',
                 'interference':        'Consumer interference coefficient',
-                'R_opt':               'Optimal predator/prey body mass ratio',
-                'gamma':               'L-matrix body-size matching sharpness',
-                'link_threshold':      'Minimum L-matrix link strength',
                 # Efficiency
                 'e_plant':             'Assimilation efficiency — plant prey',
                 'e_animal':            'Assimilation efficiency — animal prey',
@@ -208,7 +205,12 @@ def main(env_file: str, adj_file: str, traits_file: str,
             comments=''
         )
         print(f"  ✓ Saved biomass.txt ({len(table):,} rows)")
-        
+
+        model.vegetation.save_output(B_traj, t_eval, output_dir)
+        print(f"  ✓ Saved vegetation.txt")
+        model.save_consumer_output(B_traj, t_eval, output_dir)
+        print(f"  ✓ Saved atn_model.txt")
+
         # ===== STEP 8: PRINT SUMMARY STATISTICS =====
         print("\n[STEP 7] Summary statistics:")
         

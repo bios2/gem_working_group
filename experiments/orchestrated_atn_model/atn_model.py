@@ -7,6 +7,8 @@ Basal species (plants) grow logistically and are consumed by animals.
 All rates scale allometrically with body mass and optionally with temperature.
 """
 # Import required libraries
+from pathlib import Path
+
 import numpy as np  # numerical arrays and mathematics
 from scipy.integrate import odeint  # ODE solver (4th-order Runge-Kutta adaptive)
 import pandas as pd  # tabular data handling
@@ -106,10 +108,6 @@ class ATNModel:
         
         # Extract functional response parameters
         self.q_hill = config['q_hill']  # Hill exponent for functional response (2 ≈ Type II)
-        self.Ropt = config['R_opt']  # optimal consumer/resource body mass ratio for feeding
-        self.gamma = config['gamma']  # L-matrix sharpness (how peaked is the feeding kernel)
-        self.link_threshold = config['link_threshold']  # minimum link strength to keep
-        
         # Temperature parameters (for Boltzmann-Arrhenius model)
         self.T0_K = config['T0_K']  # reference temperature in Kelvin (20°C = 293.15 K)
         self.k_B = config['k_B']  # Boltzmann constant in eV/K
@@ -120,35 +118,6 @@ class ATNModel:
         
         # Print initialization message
         print(f"ATN Model initialized: {self.n_species} species, {self.n_cells} cells")
-    
-    def _L_matrix(self, cell_idx: int) -> np.ndarray:
-        """
-        Compute the body-size matching matrix L_{ij}.
-        
-        The L-matrix represents the feeding efficiency based on body size ratio.
-        L_{ij} = [z * exp(1 - z)]^gamma, where z = M_j / (M_i * R_opt)
-        
-        This is bell-shaped: peaks at z=1 (optimal ratio), decays on both sides.
-        """
-        # Extract body masses for all species
-        M = self.traits['body_mass_g'].values
-        
-        # Rows = resource/prey (i), columns = consumer/predator (j)
-        M_resource = M[:, np.newaxis]  # shape (n_species, 1) — resource mass varies by row
-        M_consumer = M[np.newaxis, :]  # shape (1, n_species) — consumer mass varies by column
-
-        # z[i,j] = M_consumer[j] / (M_resource[i] * R_opt)
-        z = M_consumer / (M_resource * self.Ropt)
-        # Compute L-matrix: bell-shaped curve with sharpness controlled by gamma
-        L = np.power(z * np.exp(1.0 - z), self.gamma)
-
-        # Remove weak links (below threshold)
-        L[L < self.link_threshold] = 0
-        # Basal species cannot be consumers: zero their columns
-        L[:, self.basal_idx] = 0
-        
-        # Return L-matrix masked by adjacency (only keep links where adj_mat = 1)
-        return L * self.adj_mat
     
     def _allometric_rate(self, rate_type: str, M_prey: np.ndarray, 
                          M_pred: np.ndarray, T_K: float) -> np.ndarray:
@@ -353,3 +322,40 @@ class ATNModel:
         # Print completion message
         print(f"✓ Completed all {self.n_cells} cells.              ")
         return B_traj
+
+    def save_consumer_output(self, B_traj: np.ndarray, t_eval: np.ndarray, output_dir) -> None:
+        """
+        Save instantaneous dB/dt for all consumer species to atn_model.txt.
+
+        Re-evaluates derivatives() at every recorded time point and cell using the
+        saved biomass trajectory, then writes a long-format table.
+
+        Columns: pixel_id, x, y, time, species, delta_biomass
+          delta_biomass = dB_j/dt (g/m²/day) — full consumer dynamics
+        """
+        n_tp = len(t_eval)
+        n_consumers = len(self.consumer_idx)
+
+        dBdt_arr = np.zeros((n_tp, self.n_cells, n_consumers))
+        for t_idx in range(n_tp):
+            for cell_idx in range(self.n_cells):
+                dydt = self.derivatives(B_traj[t_idx, cell_idx, :], t_eval[t_idx], cell_idx)
+                dBdt_arr[t_idx, cell_idx, :] = dydt[self.consumer_idx]
+
+        cell_x = self.env['x'].values.astype(int)
+        cell_y = self.env['y'].values.astype(int)
+
+        t_rep    = np.repeat(t_eval, self.n_cells * n_consumers)
+        cell_rep = np.tile(np.repeat(np.arange(self.n_cells), n_consumers), n_tp)
+        x_rep    = np.tile(np.repeat(cell_x, n_consumers), n_tp)
+        y_rep    = np.tile(np.repeat(cell_y, n_consumers), n_tp)
+        sp_rep   = np.tile(self.consumer_idx, n_tp * self.n_cells)
+        d_rep    = dBdt_arr.ravel()
+
+        table = np.column_stack([cell_rep, x_rep, y_rep, t_rep, sp_rep, d_rep])
+        np.savetxt(
+            Path(output_dir) / 'atn_model.txt', table,
+            fmt=['%d', '%d', '%d', '%.4f', '%d', '%.6e'],
+            header='pixel_id x y time species delta_biomass',
+            comments=''
+        )
