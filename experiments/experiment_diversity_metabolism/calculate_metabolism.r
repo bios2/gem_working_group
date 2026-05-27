@@ -16,30 +16,44 @@
 # T is body temperature in Kelvin for endotherms or environmental temperature for ectotherms.
 # Multiply resting rates by 3 to obtain field metabolic rate (FMR; after Brose et al. 2008)
 
+######################################
+#function specific parameters: 
+#mass_g = average body mass of individual of species (g)
+#temp_C = body temperature in Celsius/ambient temperature (accepted for ectotherms only)
+#group = "ectotherm" or "endotherm"
+#endotherm_group = "bird" or "mammal", sets body temperature (only used if group = "endotherm")
+  #temperatures sourced from Gillooly et al. (2017; 10.1098/rspb.2016.2328)
 
-calculate_metabolism <- function(mass_g, temp_C, group = c("ectotherm", "endotherm"), fmr = FALSE ) {
-  # Convert temperature to Kelvin
-  temp_K <- temp_C + 273.15
-  
-  # Set coefficients based on group
+
+calculate_metabolism <- function(mass_g, temp_C = NULL,
+                                 group = c("ectotherm", "endotherm"),
+                                 endotherm_group = NULL) {
+  # Set coefficients and temperature based on group
   if (group == "ectotherm") {
-    C <- 17.4
-    b <- 0.84
+    if (is.null(temp_C)) stop("temp_C must be provided for ectotherms")
+    c_int  <- 17.4
+    b      <- 0.84
+    temp_k <- temp_C + 273.15
   } else if (group == "endotherm") {
-    C <- 19.53
-    b <- 0.73
+    if (is.null(endotherm_group)) {
+      stop("endotherm_group must be 'bird' or 'mammal'")
+    }
+    c_int  <- 19.53
+    b      <- 0.73
+    temp_k <- switch(endotherm_group,
+      bird   = 41.5 + 273.15,
+      mammal = 36.5 + 273.15,
+      stop("endotherm_group must be 'bird' or 'mammal'")
+    )
   } else {
-    stop("Group must be either 'ectotherm' or 'endotherm'")
+    stop("group must be 'ectotherm' or 'endotherm'")
   }
-  
+
   # Calculate mass-specific metabolic rate (W/g)
-  x <- exp(C) * mass_g^(b - 1) * exp(-0.63 / (8.617e-5 * temp_K))
-  
-  # If FMR is requested, multiply by 3
-  if (fmr) {
-    x <- x * 3
-  }
-  
+  x <- exp(c_int) * mass_g^(b - 1) * exp(-0.63 / (8.617e-5 * temp_k))
+  #convert to field metabolic rate
+  x <- x * 3
+
+
   return(x)
 }
-
