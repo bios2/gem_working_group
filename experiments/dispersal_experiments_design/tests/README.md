@@ -22,9 +22,15 @@ O : Expected behaviour confirmed
 ## Test 3 
 H : Density-dependent dispersal should lead to a faster initial dispersal than density-independent dispersal under the same conditions 
 
+O : Contrary to expected behaviour, density-dependent dispersal and independent dispersal have the same pace initially, but density dependent dispersal is better at having sustained dispersal. The fact that they are both identical is actually an artifact of the way we compute invasion front distances (since some biomass always move at each time step, we have to set a threshold). The density-dependent formulation in fact does have a faster initial dispersal than density-independent dispersal. 
+
 ## Test 4 
-H : With the same resource grid (growth_rate grid), density-independent dispersal should be higher for species with high metabolism than low metabolism (hummingbird vs black bear scenario), all else being equal
+H : With the same resource grid (growth_rate grid), density-dependent dispersal should be higher for species with high metabolism (= 1.0) than low metabolism  (=0.1) (hummingbird vs black bear scenario), all else being equal
+
+O : Expected behaviour confirmed
 
 ## Test 5 : 
-All else being equal, species with high maximum dispersal should disperse further than species with low dispersal
+H : All else being equal, species with high maximum dispersal (a = 0.8) should disperse further than species with low dispersal (a = 0.2)
+
+O : Expected behaviour confirmed
 
