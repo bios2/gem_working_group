@@ -1,0 +1,2 @@
+pixel_id,x,y,temperature_K,NPP
+0,0,0,293,10

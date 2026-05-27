@@ -56,10 +56,9 @@ Results are saved to `atn_output/yyyymmddhhmmss/` (folder named with the run tim
 atn_output/
 └── 20260525143012/
     ├── simulation_summary.txt   ← species traits, grid info, all model constants
-    └── biomass.txt              ← long-format table (one row per pixel × time × species)
+    ├── vegetation.txt           ← instantaneous growth rates for all basal species
+    └── atn_model.txt            ← instantaneous dB/dt for all consumer species
 ```
-
-`biomass.txt` columns: `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
 
 The console prints per-species final biomass and the fraction of cells where each species persists.
 
@@ -71,65 +70,57 @@ The console prints per-species final biomass and the fraction of cells where eac
 └─────────────────────────────────────────────────────────────────┘
 
 INPUT FILES:
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ env_mat.txt  │  │ adj_mat.txt  │  │ traits.txt   │
-│              │  │              │  │              │
-│ Temp, NPP    │  │ Food-web     │  │ Body mass,   │
-│ per cell     │  │ links        │  │ veg. type    │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       └─────────────────┼─────────────────┘
-                         │
-                    ┌────▼────┐
-                    │VALIDATE │ (20+ sanity checks)
-                    └────┬────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-   ┌────▼──────┐  ┌─────▼──────┐  ┌─────▼──────┐
-   │atn_io.py  │  │atn_model.py│  │config.txt  │
-   │           │  │            │  │            │
-   │Read & validate           Initialize model
-   └────┬──────┘  │            │  │parameters  │
-        │         │            │  └──────────┬─┘
-        │         │            │             │
-        └─────────┼────────────┼─────────────┘
-                  │            │
-            ┌─────▼────────────▼────┐
-            │   ATN Model Instance   │
-            │   (ATNModel class)     │
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ env_mat.txt │  │ adj_mat.txt │  │ traits.txt  │  │ config.txt  │
+│             │  │             │  │             │  │             │
+│ Temp, NPP   │  │ Food-web    │  │ Body mass,  │  │ Model       │
+│ per cell    │  │ links       │  │ veg. type   │  │ parameters  │
+└──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       │                │                │                │
+       └────────────────┼────────────────┼────────────────┘
+                        │
+                 ┌──────▼──────┐
+                 │  atn_io.py  │  (20+ sanity checks)
+                 │   VALIDATE  │
+                 └──────┬──────┘
+                        │
+            ┌───────────┴────────────┐
             │                        │
-            │  Stores:               │
-            │  - Species traits      │
-            │  - Food-web adjacency  │
-            │  - Herb/tree indices   │
-            │  - Allometric params   │
-            └─────────┬──────────────┘
-                      │
-        ┌─────────────┼─────────────┐
-        │             │             │
-    ┌───▼───┐     ┌───▼───┐     ┌──▼────┐
-    │ Cell  │     │ Cell  │     │ Cell  │  ... (independent cells)
-    │   0   │     │   1   │     │  N    │
-    └───┬───┘     └───┬───┘     └──┬────┘
-        │             │            │
-        ├─────────────┼────────────┤  For each cell:
-        │             │            │  1. Get temperature T_K and NPP
-        │  ODE        │  ODE       │  2. Compute allometric rates
-        │ SOLVER      │ SOLVER     │  3. Integrate dB/dt for each species
-        │ (scipy.     │ (scipy.    │  4. Apply NPP-driven growth (basal)
-        │ odeint)     │ odeint)    │  5. Apply Holling Type II (consumers)
-        │             │            │
-    ┌───▼───────────────────────────▼──┐
-    │  Biomass Trajectory B(t, cell, sp) │
-    │  Output shape: (time, cells, spp) │
-    └───┬────────────────────────────┬──┘
-        │                            │
-    ┌───▼────────────┐  ┌───────────▼────┐
-    │ Save output    │  │ Print summary   │
-    │ biomass.txt +  │  │ (persistence,   │
-    │ summary.txt    │  │  final biomass) │
-    └────────────────┘  └─────────────────┘
+   ┌────────▼────────┐    ┌──────────▼────────┐
+   │ vegetation_     │    │   atn_model.py     │
+   │ model.py        │    │                   │
+   │                 │    │  Animal dynamics  │
+   │ Vegetation      │    │  (ATNModel class) │
+   │ dynamics        │    │                  │
+   └────────┬────────┘    └──────────┬────────┘
+            │                        │
+            └───────────┬────────────┘
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+    ┌───▼───┐       ┌───▼───┐       ┌───▼───┐
+    │ Cell  │       │ Cell  │       │ Cell  │  ... (independent cells)
+    │   0   │       │   1   │       │  N    │
+    └───┬───┘       └───┬───┘       └───┬───┘
+        │               │               │
+        ├───────────────┼───────────────┤  For each cell:
+        │               │               │  1. Get temperature T_K and NPP
+        │  ODE          │  ODE          │  2. Compute allometric rates
+        │ SOLVER        │ SOLVER        │  3. Integrate dB/dt each species
+        │ (scipy.       │ (scipy.       │  4. NPP-driven vegetation growth
+        │  odeint)      │  odeint)      │  5. Holling Type II (consumers)
+        │               │               │
+    ┌───▼───────────────────────────────▼──┐
+    │   Biomass Trajectory B(t, cell, spp) │
+    │   Output shape: (time, cells, spp)   │
+    └───┬───────────────────────────────┬──┘
+        │                               │
+    ┌───▼──────────────────┐  ┌─────────▼──────┐
+    │     Save output      │  │  Print summary  │
+    │  vegetation.txt      │  │ (persistence,   │
+    │  atn_model.txt       │  │  final biomass) │
+    │                      │  │                 │
+    └──────────────────────┘  └────────────────┘
 
 
 EQUATIONS (per cell, g/m²/day):
@@ -181,7 +172,7 @@ For each cell: ATNModel.derivatives(B, t, cell_idx)
        ↓
 ODE solver (scipy.odeint) integrates forward in time
    ↓
-Biomass trajectory saved to atn_output/yyyymmddhhmmss/biomass.txt (long format)
+Biomass differences saved to atn_output/yyyymmddhhmmss/vegetation.txt and atn_model.txt
 ```
 
 ## Function Call Graph
@@ -330,20 +321,21 @@ Human-readable record of the run:
 - Full species trait table (`species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2`)
 - All model constants from `config.txt` with descriptions
 
-### biomass.txt
+### vegetation.txt
 
-Long-format table with one row per pixel × time step × species combination.
+Long-format table of instantaneous vegetation growth rates for all basal species.
 
-**Columns:** `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
+**Columns:** `pixel_id`, `x`, `y`, `time`, `species`, `delta_biomass`
 
-**Example rows:**
-```
-pixel_id x y time_step species_id biomass
-0 0 0 0.0000 0 1.002345e+01
-0 0 0 0.0000 1 8.012456e+00
-...
-2 0 2 100.0000 39 5.123400e-03
-```
+`delta_biomass` = NPP-driven leaf biomass growth rate G_i (g/m²/day).
+
+### atn_model.txt
+
+Long-format table of instantaneous dB/dt for all consumer species.
+
+**Columns:** `pixel_id`, `x`, `y`, `time`, `species`, `delta_biomass`
+
+`delta_biomass` = full consumer dB_j/dt (g/m²/day): feeding gain minus metabolic loss minus predation.
 
 ### Load and analyze results:
 
@@ -351,18 +343,20 @@ pixel_id x y time_step species_id biomass
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('atn_output/20260525143012/biomass.txt', sep=' ')
+veg = pd.read_csv('atn_output/20260525143012/vegetation.txt', sep=' ')
+atn = pd.read_csv('atn_output/20260525143012/atn_model.txt', sep=' ')
 
-# Plot species 0 at pixel (0, 0) over time
-s0 = df[(df['species_id'] == 0) & (df['x'] == 0) & (df['y'] == 0)]
-plt.plot(s0['time_step'], s0['biomass'])
+# Plot dB/dt for consumer species 4 at pixel (0, 0) over time
+s4 = atn[(atn['species'] == 4) & (atn['x'] == 0) & (atn['y'] == 0)]
+plt.plot(s4['time'], s4['delta_biomass'])
 plt.xlabel('Time (days)')
-plt.ylabel('Biomass (g/m²)')
+plt.ylabel('dB/dt (g/m²/day)')
 plt.show()
 
-# Final mean biomass per species across all pixels
-final = df[df['time_step'] == df['time_step'].max()]
-print(final.groupby('species_id')['biomass'].mean())
+# Mean growth rate per basal species across all pixels at final time
+final_t = veg['time'].max()
+final_veg = veg[veg['time'] == final_t]
+print(final_veg.groupby('species')['delta_biomass'].mean())
 ```
 
 ## Configuration

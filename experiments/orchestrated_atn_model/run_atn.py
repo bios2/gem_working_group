@@ -187,27 +187,6 @@ def main(env_file: str, adj_file: str, traits_file: str,
 
         print(f"  ✓ Saved simulation_summary.txt")
 
-        # ===== WRITE LONG-FORMAT BIOMASS TABLE =====
-        # B_traj shape: (n_timepoints, n_cells, n_species)
-        # Output rows: one per (time_step × pixel × species)
-        # Flatten order matches C (row-major): time varies slowest, species fastest
-        n_tp = len(t_eval)
-        t_rep    = np.repeat(t_eval,                    n_cells * n_species)
-        cell_rep = np.tile(np.repeat(np.arange(n_cells), n_species), n_tp)
-        x_rep    = np.tile(np.repeat(cell_x,              n_species), n_tp)
-        y_rep    = np.tile(np.repeat(cell_y,              n_species), n_tp)
-        sp_rep   = np.tile(np.arange(n_species),         n_tp * n_cells)
-        bio_rep  = B_traj.ravel()
-
-        table = np.column_stack([cell_rep, x_rep, y_rep, t_rep, sp_rep, bio_rep])
-        np.savetxt(
-            output_dir / 'biomass.txt', table,
-            fmt=['%d', '%d', '%d', '%.4f', '%d', '%.6e'],
-            header='pixel_id x y time_step species_id biomass',
-            comments=''
-        )
-        print(f"  ✓ Saved biomass.txt ({len(table):,} rows)")
-
         model.vegetation.save_output(B_traj, t_eval, output_dir)
         print(f"  ✓ Saved vegetation.txt")
         model.save_consumer_output(B_traj, t_eval, output_dir)
