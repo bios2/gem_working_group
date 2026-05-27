@@ -30,20 +30,48 @@ A second goal is to document how AI coding agents can support collaborative ecol
 
 ## Project structure
 
+```
+gem-working-group/
+├── data/         # Input data files (large rasters gitignored); see Input data files
+├── docs/         # Reference documents — contracts, specifications, design notes
+├── experiments/  # Prototypes and experiments; one subfolder per experiment
+├── papers/       # Reference papers and bibliography
+├── src/          # The simulation package (engine + processes), added when implementation starts
+└── README.md
+```
 
+Everyday work happens in `experiments/` while the model is being prototyped. Once a process or engine component is stable, it migrates into `src/` so it can be imported by every experiment.
 
 ## Python packaging and environment
 
-<!-- Dependancies -->
+We use Python with three core dependencies: `numpy` (numerical arrays — the backbone of every process), `scipy` (numerical integration for ODE-style processes), and `pytest` (running tests). Spatial and tabular libraries (`geopandas`, `rasterio`, `xarray`, `pandas`) are added as data-handling needs grow.
 
-<!-- .toml -->
+Dependencies and packaging metadata live in a single `pyproject.toml` at the repo root. No `setup.py`, no `requirements.txt` — `pyproject.toml` is the only source of truth, so there is nothing to keep in sync by hand.
 
-<!-- .venv and and getting started with venv and pip install -e . -->
+**Getting started.** From the repo root:
 
+```bash
+python -m venv .venv             # create an isolated environment
+source .venv/bin/activate        # macOS / Linux
+.venv\Scripts\activate           # Windows
+pip install -e .                 # install the project and its dependencies
+pytest                           # confirm everything works
+```
+
+`pip install -e .` installs the project in **editable mode**: changes you make to the source code take effect immediately without reinstalling. The `.venv/` folder is local to your machine and is gitignored — never commit it. Each team member recreates it from `pyproject.toml`.
 
 ## Style guide and naming conventions
 
-<!-- Style guide, casing for modules, functions and naming -->
+We follow standard Python conventions (PEP 8) so the code is recognisable to anyone who has read a Python tutorial:
+
+- **Modules and packages** (folders and `.py` files): lowercase with underscores — `vegetation.py`, `species_registry.py`. No CamelCase, no hyphens.
+- **Functions and variables**: lowercase with underscores — `logistic_growth_delta`, `body_mass`.
+- **Constants**: uppercase with underscores — `EXTINCTION_THRESHOLD`, `T0_K`.
+- **Classes**: CamelCase — `EcosystemGridState`, `EnvironmentState`.
+
+Names should describe **what** the thing is, not how it is implemented: prefer `metabolic_rate` over `m`, `carrying_capacity` over `K_arr`. Single-letter names are fine inside short math expressions where the meaning is local (`B`, `r`, `K` matching the equation you are encoding) but not in module-level APIs.
+
+Branch names: lowercase with hyphens — `vegetation-logistic-growth`, `dispersal-density-dependent`. One feature per branch.
 
 
 ## Experiments and prototyping
