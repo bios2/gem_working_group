@@ -2,7 +2,7 @@
 
 This document specifies the contract that every ecosystem process (vegetation, ATN, dispersal, fire, ...) must follow to be pluggable into the simulation engine described in the architecture proposal. It complements `process_synthesis_atn.md`, `process_synthesis_vegetation.md`, and `process_synthesis_distribution.md` by describing *how* a process is exposed to the engine, independently of *what* it computes.
 
-The spec has four parts: the output contract (discrete deltas), the shape convention (broadcast-friendly numpy at the process's natural dimensionality), the typing requirements (dtype-checked signatures and a runtime shape guard), and the module layout (science modules independent of the engine, adapters consolidated next to it).
+The spec has five parts: the output contract (discrete deltas), the shape convention (broadcast-friendly numpy at the process's natural dimensionality), the typing requirements (dtype-checked signatures and a runtime shape guard), the module layout (science modules independent of the engine, adapters consolidated next to it), and the handling of ODE-style processes (an explicit section, because their integration scheme is not part of the engine).
 
 This file is intended to be reused as the canonical reference for `src/` contribution rules in future `README.md` and `AGENTS.md` / `CLAUDE.md` artifacts.
 
@@ -19,7 +19,7 @@ delta_B = process_science(state_arrays..., scalar_params..., dt)
 - `dt`: the engine's time step, in whatever units the project agrees on (typically days). Always the last positional argument. Always a `float`.
 - `delta_B`: the biomass change produced by this process over `dt`, same shape as the primary biomass input. The engine accumulates `delta_B` from every process into a shared delta layer and applies the sum at the end of the step (see criticism #1 in `../README.md`).
 
-Processes whose scientific formulation is naturally a differential equation `dB/dt = f(B, ...)` (e.g. ATN) integrate that rate to a delta **inside their adapter**, using a shared numerical helper from `numerics.py` (e.g. a vectorised RK4 step). The engine never sees rates; it only sees deltas. Rationale: see [`../discretization.md`](../discretization.md).
+Processes whose scientific formulation is naturally a differential equation (`dB/dt = f(B, ...)`, e.g. ATN) are addressed in §6.
 
 ## 2. Shape convention: each process at its natural dimensionality, written to broadcast
 
@@ -80,8 +80,7 @@ gem_working_group/
 │       ├── vegetation.py             # science: pure functions, no engine imports
 │       ├── atn.py                    # science: pure functions, no engine imports
 │       ├── dispersal.py              # science: pure functions, no engine imports
-│       ├── processes.py              # all engine adapters live here
-│       └── numerics.py               # shared helpers (rk4_step, kernels, ...)
+│       └── processes.py              # all engine adapters live here
 └── tests/
     ├── test_vegetation.py
     ├── test_atn.py
@@ -91,7 +90,7 @@ gem_working_group/
 ### 4.1 Science modules (`vegetation.py`, `atn.py`, `dispersal.py`, ...)
 
 - Pure functions matching §3's typed signature.
-- Import nothing from the engine. No `EcosystemGridState`, no `EnvironmentState`, no `SpeciesRegistry`. Only `numpy` and the standard library (and `numerics` if the function is an ODE rate that will be integrated by RK4).
+- Import nothing from the engine. No `EcosystemGridState`, no `EnvironmentState`, no `SpeciesRegistry`. Only `numpy` and the standard library.
 - Follow the shape convention from §2.
 - Can be loaded and tested in a notebook without instantiating the engine.
 
@@ -102,16 +101,8 @@ gem_working_group/
 - Each adapter is responsible for:
   - Slicing the right state arrays out of `grid` / `env` / `grid.registry` (biomass for the relevant group, environmental layers, per-species parameters reshaped to broadcast against the biomass shape).
   - Calling the matching science function.
-  - For ODE-style processes: calling `numerics.rk4_step` (or another helper from `numerics.py`) to convert the returned rate into a delta over `dt`.
   - Writing the delta into the engine's shared delta layer via `grid.add_delta(...)`.
 - A reader opening `processes.py` sees the full engine pipeline in one place: every adapter, every glue line, every layer it touches.
-
-### 4.3 Shared helpers (`numerics.py`)
-
-- Cross-process numerical utilities. Currently anticipated:
-  - `rk4_step(derivative_fn, state, dt, n_substeps)`: vectorised fixed-step Runge-Kutta integrator, used by ODE-style adapters.
-  - Reusable spatial kernels and neighbour stencils for dispersal-like processes.
-- Depends only on NumPy. Does not import the engine.
 
 ## 5. Worked example: per-cell logistic growth
 
@@ -197,62 +188,30 @@ def test_logistic_growth_runs_on_grid():
 
 Both tests exercise the same function with no engine, no fixtures, no mocking.
 
-## 6. Worked example sketch: ATN under this contract
+## 6. ODE-style processes (ATN and others)
 
-ATN's current implementation on the `patn` branch already separates the science (`derivatives(y, t, cell_idx)`) from the integration (`run_cell` / `run_all_cells`). Porting it to this contract is a refactor of structure, not a rewrite of the equations.
+Some processes are naturally written as ordinary differential equations: their published formulation is a rate `dB/dt = f(B, ...)`, not a per-step delta. ATN on the `patn` branch is the current example; future hydrodynamics, soil dynamics, or temperature-driven processes may also arrive in this form. The engine still only accepts a delta per time step (§1), so the contributor must choose how to bridge from the rate to a delta. There are two acceptable options, and the choice is made by the process's contributor:
 
-### 6.1 Science (`atn.py`)
+### Option A — Integrate the rate inside the adapter
 
-```python
-# src/gem_working_group/atn.py
-import numpy as np
-from numpy.typing import NDArray
+The science module exposes a function returning `dB/dt`, written under the same shape and typing conventions as any other science function (§2, §3). The adapter is the only place that calls an integrator to advance the state by `dt`. Two integrators are reasonable to use:
 
-def atn_derivative(
-    biomass: NDArray[np.float64],
-    body_mass: NDArray[np.float64],
-    adjacency: NDArray[np.float64],
-    temperature_K: NDArray[np.float64],
-    carrying_capacity: NDArray[np.float64],
-    is_basal: NDArray[np.float64],
-    dt: float,                # unused: this function returns a rate
-    # ... additional scalar params for allometric and FR constants ...
-) -> NDArray[np.float64]:
-    """
-    Unscaled spatial ATN model (Binzer/Schneider). Returns dB/dt at the
-    current state; integration to a delta is handled by the adapter.
+- `scipy.integrate.solve_ivp` (or the legacy `scipy.integrate.odeint`) with a Runge-Kutta method (`RK45`, `RK23`) when the contributor wants adaptive substep control and tolerance-based error handling. This was ATN's original choice on the `patn` branch.
+- A small project-local vectorised RK4 step, when the contributor wants fixed-substep integration that vectorises cleanly over the full `(X, Y, S)` grid (typically faster than per-cell `scipy` calls at global scale).
 
-    `biomass` has shape (..., S). Within-cell species coupling is expressed
-    via reductions on axis=-1. Leading axes pass through unchanged.
-    """
-    # ... feeding (Holling II on axis=-1), metabolism, growth, predation ...
-    return dB_dt
-```
+If multiple ODE-style processes end up sharing the same fixed-step integrator, a small `numerics.py` module added next to the engine is the natural home for it (e.g. an `rk4_step(derivative_fn, state, dt, n_substeps)` helper). This module is **not part of the standard package layout** in §4; it is added only when a second ODE-style process arrives and reuses the integrator. The first ODE process can implement its integrator privately inside its adapter and only extract it once a second user appears.
 
-`dt` appears in the signature for uniformity; the function ignores it because it returns a rate. The adapter is what converts that rate into a delta over `dt`.
+Whichever integrator is used, the integration scheme and any substep count are written explicitly in the adapter, in the same file as every other adapter (`processes.py`). A reader sees both the science (a rate function in `<process>.py`) and the numerical choice (the integrator call in `processes.py`) without having to look into framework code.
 
-### 6.2 Adapter (`processes.py`)
+### Option B — Rewrite the science to return a delta directly
 
-```python
-# src/gem_working_group/processes.py (continued)
-from . import atn, numerics
+The contributor restates the equations in discrete-time form: the science function returns `delta_B` directly, with `dt` baked into the math (e.g. a forward Euler step `delta = dt * f(state)`, or a higher-order discrete scheme). The adapter then has no integration step at all, and the process looks structurally identical to a non-ODE process (§5).
 
-def apply_atn(grid: EcosystemGridState, env: EnvironmentState, dt: float) -> None:
-    B = grid.layers["biomass"]
-    body_mass = grid.registry.body_mass
-    adjacency = grid.registry.adjacency
-    T_K       = env.get_layer("temperature_K")[..., np.newaxis]
-    K         = env.get_layer("carrying_capacity")[..., np.newaxis]
-    is_basal  = grid.registry.is_basal
+This option is appropriate when the discrete approximation is accurate enough at the engine's `dt`, when the contributor wants the simplest possible code path, or when the underlying dynamics are not stiff enough to need adaptive control.
 
-    def rate(B_state):
-        return atn.atn_derivative(B_state, body_mass, adjacency, T_K, K, is_basal, dt)
+### Choosing between A and B
 
-    delta = numerics.rk4_step(rate, B, dt=dt, n_substeps=4)
-    grid.add_delta("biomass", slice(None), delta)
-```
-
-The science function stays a pure NumPy expression of the published ATN equations. The adapter is where the integration scheme (RK4 with 4 substeps) is declared explicitly, in the same file as every other adapter.
+The trade-offs are documented in [`../discretization.md`](../discretization.md). In short: Option A preserves the published continuous-time fidelity at a small implementation cost; Option B is simpler but requires the contributor to verify that the chosen `dt` (and any internal subcycling) keeps the dynamics accurate. Either way, an ODE-style process should validate its new path against a reference implementation (e.g. `scipy.integrate.solve_ivp` on a small grid) at least once before being trusted in production runs.
 
 ## 7. Summary checklist for a new process contribution
 
@@ -260,7 +219,7 @@ The science function stays a pure NumPy expression of the published ATN equation
 - [ ] Write the science function with the typed signature from §3.
 - [ ] Follow the shape convention from §2 (broadcast-friendly numpy at the process's natural dimensionality).
 - [ ] Add the runtime shape `assert` at the top of the function.
-- [ ] Add `apply_<process>(grid, env, dt)` in `processes.py`. This is where slicing, parameter fetching, and (if applicable) RK4 integration live.
+- [ ] Add `apply_<process>(grid, env, dt)` in `processes.py`. This is where slicing, parameter fetching, and (if applicable) ODE integration live.
 - [ ] Add a unit test in `tests/test_<process>.py` using hand-built arrays — no engine instance.
-- [ ] If the science is an ODE, validate the adapter's RK4 substep count against a reference implementation (`scipy.odeint` on a small grid) and document the chosen substep count.
+- [ ] If the science is ODE-style, choose Option A or B from §6, document the choice in the adapter, and validate against a reference integration on a small grid.
 - [ ] Register the adapter with the engine in the pipeline definition.
