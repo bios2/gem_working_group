@@ -35,7 +35,13 @@ See the **Input Files** section below for column details and examples.
 python run_atn.py env_mat.txt adj_mat.txt traits.txt
 ```
 
-Optional arguments (pass via the Python API):
+Optional flags:
+
+```bash
+python run_atn.py env_mat.txt adj_mat.txt traits.txt --seed 123 --t_max 500
+```
+
+Or via the Python API:
 
 ```python
 from run_atn import main
@@ -44,7 +50,8 @@ B_traj, t_eval, model = main(
     'env_mat.txt',
     'adj_mat.txt',
     'traits.txt',
-    t_max=500,         # simulation length in days (default: 100)
+    t_max=500,   # simulation length in days (default: 100)
+    seed=42,     # random seed for initial-biomass noise (default: 42)
 )
 ```
 
@@ -96,24 +103,27 @@ INPUT FILES:
             │                        │
             └───────────┬────────────┘
                         │
-        ┌───────────────┼───────────────┐
-        │               │               │
-    ┌───▼───┐       ┌───▼───┐       ┌───▼───┐
-    │ Cell  │       │ Cell  │       │ Cell  │  ... (independent cells)
-    │   0   │       │   1   │       │  N    │
-    └───┬───┘       └───┬───┘       └───┬───┘
-        │               │               │
-        ├───────────────┼───────────────┤  For each cell:
-        │               │               │  1. Get temperature T_K and NPP
-        │  ODE          │  ODE          │  2. Compute allometric rates
-        │ SOLVER        │ SOLVER        │  3. Integrate dB/dt each species
-        │ (scipy.       │ (scipy.       │  4. NPP-driven vegetation growth
-        │  odeint)      │  odeint)      │  5. Holling Type II (consumers)
-        │               │               │
-    ┌───▼───────────────────────────────▼──┐
-    │   Biomass Trajectory B(t, cell, spp) │
-    │   Output shape: (time, cells, spp)   │
-    └───┬───────────────────────────────┬──┘
+        ┌───────────────▼───────────────┐
+        │  ATNModel.run_all_cells()      │
+        │  Fixed-step RK4 loop           │
+        │  All cells integrated at once  │
+        │  (n_cells, S) arrays           │
+        └───────────────┬───────────────┘
+                        │  4× per time step
+        ┌───────────────▼───────────────┐
+        │  ATNModel.derivatives(B, t)    │
+        │  Vectorised over all cells;    │
+        │  no Python loop over cells     │
+        │  1. Temperature scaling        │
+        │  2. Functional response F      │
+        │  3. vegetation.growth_all_cells│
+        │  4. dB/dt = gain + G - X·B - loss │
+        └───────────────┬───────────────┘
+                        │
+    ┌───────────────────▼───────────────────┐
+    │   Biomass Trajectory B(t, cell, spp)  │
+    │   Output shape: (time, cells, spp)    │
+    └───┬───────────────────────────────┬───┘
         │                               │
     ┌───▼──────────────────┐  ┌─────────▼──────┐
     │     Save output      │  │  Print summary  │
@@ -155,57 +165,50 @@ PARAMETER FLOW:
 
 config.txt (read by atn_io.read_config())
    ↓
-ATNModel.__init__() extracts rates:
-   psi, f_struct, alpha_herbs, X0, b_X, a0, b_a_prey, b_a_pred, h0, etc.
+ATNModel.__init__() precomputes temperature-independent allometric arrays:
+   base_a (S×S), base_h (S×S), base_X (S,), E (S×S)
    ↓
-ATNModel.run_all_cells()
+ATNModel.run_all_cells(B_initial, t_eval)   [fixed-step RK4, no per-cell loop]
    ↓
-For each cell: ATNModel.derivatives(B, t, cell_idx)
-   ├─ Compute T_K and NPP from env_df[cell_idx]
-   ├─ Compute a_ij(M, T) and h_ij(M, T) matrices
-   ├─ Compute X(M, T) vector
-   ├─ For each basal species i:
-   │  └─ dB_i/dt = vegetation_growth(B, NPP, C_i) - loss
-   ├─ For each consumer species j:
-   │  └─ dB_j/dt = feeding_gain(Σ e_i F_ij) - loss
-   └─ Return dydt vector
+ATNModel.derivatives(B, t)   B shape: (n_cells, S)
+   ├─ Temperature scaling → a_ij, h_ij: (n_cells, S, S); X: (n_cells, S)
+   ├─ Functional response F: (n_cells, S, S)
+   ├─ vegetation.growth_all_cells(B) → G: (n_cells, S)
+   └─ dB/dt = feeding_gain + G - X·B - predation_loss   [all cells at once]
        ↓
-ODE solver (scipy.odeint) integrates forward in time
+Returns B_traj: (n_tp, n_cells, S)
    ↓
-Biomass differences saved to atn_output/yyyymmddhhmmss/vegetation.txt and atn_model.txt
+Rates saved to atn_output/yyyymmddhhmmss/vegetation.txt and atn_model.txt
 ```
 
 ## Function Call Graph
 
 ```
 ATNModel.__init__(adj_mat, traits_df, env_df, config)
-│  Reads adj_mat, traits_df, env_df; extracts allometric constants from config
-│  Instantiates PlantVegetationModel (owns herb_idx, tree_idx, f_struct, alpha_herbs)
+│  Precomputes base_a, base_h, base_X, E (temperature-independent, shape S×S or S)
+│  Instantiates PlantVegetationModel (owns herb_idx, tree_idx, f_struct, npp)
 │
-└── run_all_cells(B_initial, t_eval)
-        │  iterates over spatial cells
+└── run_all_cells(B_initial, t_eval)        B_initial: (n_cells, S)
+        │  Fixed-step RK4; no loop over cells
         │
-        └── run_cell(B_initial[cell], cell_idx, t_eval)
-                │  wraps scipy.odeint for one cell
+        └── derivatives(B, t)               B: (n_cells, S) — called 4× per RK4 step
+                │  All cells computed simultaneously in one numpy call
                 │
-                └── derivatives(y, t, cell_idx)     ← ODE RHS, called each solver step
-                        │
-                        ├── _allometric_rate('attack')    → a_ij  (n_spp × n_spp)
-                        ├── _allometric_rate('handling')  → h_ij  (n_spp × n_spp)
-                        ├── _metabolic_rate()             → X     (n_spp,)
-                        ├── vegetation.growth(B, cell)   → G     (n_spp,)   [PlantVegetationModel]
-                        │       reads NPP from env_df[cell_idx]
-                        │       herb: C_i = α/(α + B_trees)
-                        │       tree: C_i = B[i]/(α + B_trees)
-                        │
-                        └── _functional_response(B, j)   → F_ij  (n_spp,)  per consumer j
-                                └─ uses a_ij, h_ij set above
+                ├── temperature scaling     → a_ij, h_ij: (n_cells, S, S)
+                │                             X: (n_cells, S)
+                ├── functional response F   → (n_cells, S, S)
+                │     numerator  = a_ij * B^q
+                │     denominator = 1 + c·B + Σ h·a·B^q
+                │
+                └── vegetation.growth_all_cells(B)   → G: (n_cells, S)
+                        herb: C_i = α / (α + B_trees)
+                        tree: C_i = B_i / (α + B_trees)
 ```
 
 ## Requirements
 
 ```bash
-pip install numpy scipy pandas
+pip install numpy pandas
 ```
 
 ## Quick Start
@@ -221,9 +224,10 @@ from run_atn import main
 
 B_traj, t_eval, model = main(
     'env_mat.txt',
-    'adj_mat.txt', 
+    'adj_mat.txt',
     'traits.txt',
-    t_max=500,           # simulate for 500 days
+    t_max=500,   # simulate for 500 days
+    seed=42,     # random seed (default: 42)
 )
 ```
 
@@ -316,7 +320,7 @@ Saved to `atn_output/yyyymmddhhmmss/` (one timestamped folder per run).
 ### simulation_summary.txt
 
 Human-readable record of the run:
-- Run timestamp
+- Run timestamp, random seed, and git commit hash
 - Number of species, time steps, pixels, and grid dimensions
 - Full species trait table (`species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2`)
 - All model constants from `config.txt` with descriptions
@@ -405,7 +409,10 @@ python run_atn.py env_mat.txt adj_mat.txt traits.txt my_config.txt
 ```
 
 ```python
-B_traj, t_eval, model = main('env_mat.txt', 'adj_mat.txt', 'traits.txt', config_file='my_config.txt')
+B_traj, t_eval, model = main(
+    'env_mat.txt', 'adj_mat.txt', 'traits.txt',
+    config_file='my_config.txt', seed=42
+)
 ```
 
 ## Model Details

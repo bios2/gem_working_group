@@ -8,12 +8,12 @@ This script orchestrates the entire workflow:
 4. Integrate ODEs forward in time
 5. Save results and print summary
 """
-# Import required libraries
-import numpy as np  # numerical arrays and math
-import pandas as pd  # data frame handling
-import sys  # system utilities (exit codes)
-from pathlib import Path  # cross-platform path handling
-from datetime import datetime  # timestamp for output folder name
+import numpy as np
+import pandas as pd
+import subprocess
+import sys
+from pathlib import Path
+from datetime import datetime
 # Import custom modules from this project
 from atn_io import (
     read_config,                                           # config reader
@@ -23,8 +23,25 @@ from atn_io import (
 )
 from atn_model import ATNModel  # the ODE model
 
+def _git_commit_hash() -> str:
+    """Return the current HEAD commit hash, or 'uncommitted' if the repo is dirty."""
+    try:
+        hash_ = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            capture_output=True, text=True, check=True
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ['git', 'diff', '--quiet'],
+            capture_output=True
+        ).returncode != 0
+        return hash_ + (' (dirty)' if dirty else '')
+    except Exception:
+        return 'unavailable'
+
+
 def main(env_file: str, adj_file: str, traits_file: str,
-         config_file: str = 'config.txt', t_max: float = 100.0):
+         config_file: str = 'config.txt', t_max: float = 100.0,
+         seed: int = 42):
     """
     Run the ATN model with full validation.
 
@@ -34,7 +51,10 @@ def main(env_file: str, adj_file: str, traits_file: str,
         traits_file: path to traits.txt (species traits: body mass, initial biomass)
         config_file: path to config.txt (model parameters)
         t_max: simulation end time (days); one output point is saved per day
+        seed: random seed for numpy (controls initial-biomass noise)
     """
+    np.random.seed(seed)
+    commit_hash = _git_commit_hash()
 
     # Print header banner
     print("=" * 70)
@@ -118,6 +138,8 @@ def main(env_file: str, adj_file: str, traits_file: str,
             fsum.write("=" * 60 + "\n")
             fsum.write("SIMULATION SUMMARY\n")
             fsum.write(f"Run timestamp : {timestamp}\n")
+            fsum.write(f"Random seed   : {seed}\n")
+            fsum.write(f"Git commit    : {commit_hash}\n")
             fsum.write("=" * 60 + "\n\n")
 
             # --- Simulation dimensions ---
@@ -249,19 +271,18 @@ def main(env_file: str, adj_file: str, traits_file: str,
         sys.exit(1)
 
 if __name__ == '__main__':
-    # Allow command-line arguments for filenames
-    if len(sys.argv) > 1:
-        # Use provided filenames
-        env_f    = sys.argv[1]
-        adj_f    = sys.argv[2]
-        traits_f = sys.argv[3]
-        config_f = sys.argv[4] if len(sys.argv) > 4 else 'config.txt'
-    else:
-        # Use default filenames
-        env_f    = 'env_mat.txt'
-        adj_f    = 'adj_mat.txt'
-        traits_f = 'traits.txt'
-        config_f = 'config.txt'
+    import argparse
+    parser = argparse.ArgumentParser(description='Run the spatially explicit ATN model.')
+    parser.add_argument('env_file',    nargs='?', default='env_mat.txt')
+    parser.add_argument('adj_file',    nargs='?', default='adj_mat.txt')
+    parser.add_argument('traits_file', nargs='?', default='traits.txt')
+    parser.add_argument('config_file', nargs='?', default='config.txt')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for initial-biomass noise (default: 42)')
+    parser.add_argument('--t_max', type=float, default=100.0)
+    args = parser.parse_args()
 
-    # Run the model
-    B_traj, t_eval, model = main(env_f, adj_f, traits_f, config_file=config_f, t_max=100)
+    B_traj, t_eval, model = main(
+        args.env_file, args.adj_file, args.traits_file,
+        config_file=args.config_file, t_max=args.t_max, seed=args.seed
+    )

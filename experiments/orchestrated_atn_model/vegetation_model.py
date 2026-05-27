@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict
 
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 
 
@@ -15,20 +16,11 @@ class PlantVegetationModel:
     """
     NPP-driven plant biomass growth model.
 
-    The ATN passes the current biomass vector and cell index to this class.
-    The vegetation model returns a growth-rate vector G with one entry per
-    species; non-basal species receive zero growth.
+    growth()          accepts B: (S,)         — used by the single-cell interface
+    growth_all_cells() accepts B: (n_cells, S) — used by derivatives() and save_output()
     """
 
     def __init__(self, traits_df: pd.DataFrame, env_df: pd.DataFrame, config: Dict):
-        """
-        Initialize plant vegetation state and parameters.
-
-        Parameters:
-            traits_df: DataFrame with species traits, including is_basal and vegetation_type
-            env_df: DataFrame with per-cell environmental inputs, including NPP
-            config: Dict with vegetation parameters
-        """
         self.traits = traits_df
         self.env = env_df
         self.cfg = config
@@ -50,42 +42,77 @@ class PlantVegetationModel:
         self.alpha_herbs = config['alpha_herbs_default']
         self.psi = config['psi']
 
-    def growth(self, B: np.ndarray, cell_idx: int, t: float = None) -> np.ndarray:
+        # Pre-extract NPP for vectorised multi-cell calls — avoids repeated DataFrame lookup
+        self.npp = env_df['NPP'].values.astype(float)  # (n_cells,)
+
+    def growth(self, B: NDArray[np.float64], cell_idx: int,
+               t: float = None) -> NDArray[np.float64]:
         """
-        Compute NPP-driven leaf biomass growth rate G_i for each basal species.
+        NPP-driven leaf biomass growth rate G_i for each species in one cell.
 
-        Implements the vegetation.md equation:
-            G_i = NPP * psi * (1 - f_struct_i) * C_i
-
-        Competitive partition C_i:
-            Herb i:  C_i = alpha / (alpha + B_trees)
-            Tree i:  C_i = B[i]  / (alpha + B_trees)
-
-        The optional time argument is accepted so this interface can later
-        support seasonal or time-varying vegetation drivers.
+        B: (S,) — current biomass for this cell
+        Returns G: (S,) — growth rate per species (zero for consumers)
         """
-        del t  # Reserved for future time-dependent vegetation dynamics.
+        del t  # reserved for future time-varying vegetation drivers
 
         G = np.zeros(self.n_species)
-        NPP = self.env.loc[cell_idx, 'NPP']
-        B_trees = float(np.sum(B[self.tree_idx])) if len(self.tree_idx) > 0 else 0.0
+        NPP = self.npp[cell_idx]
+        B_trees = B[self.tree_idx].sum() if len(self.tree_idx) > 0 else 0.0
 
-        for i in self.herb_idx:
-            C_i = self.alpha_herbs / (self.alpha_herbs + B_trees)
-            G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
+        # All herbs share the same C_i (Michaelis-Menten on total tree biomass)
+        G[self.herb_idx] = (NPP * self.psi
+                            * (1.0 - self.f_struct[self.herb_idx])
+                            * self.alpha_herbs / (self.alpha_herbs + B_trees))
 
-        for i in self.tree_idx:
-            C_i = B[i] / (self.alpha_herbs + B_trees)
-            G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
+        if len(self.tree_idx) > 0:
+            C_tree = B[self.tree_idx] / (self.alpha_herbs + B_trees)
+            G[self.tree_idx] = (NPP * self.psi
+                                * (1.0 - self.f_struct[self.tree_idx])
+                                * C_tree)
+        return G
+
+    def growth_all_cells(self, B: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        NPP-driven leaf biomass growth rate G_i for all cells simultaneously.
+
+        B: (n_cells, S) — must have the same shape
+        Returns G: (n_cells, S) — growth rate per cell per species
+        """
+        assert B.ndim == 2 and B.shape[1] == self.n_species
+
+        n_cells = B.shape[0]
+        G = np.zeros((n_cells, self.n_species))
+
+        B_trees = (B[:, self.tree_idx].sum(axis=1)
+                   if len(self.tree_idx) > 0
+                   else np.zeros(n_cells))          # (n_cells,)
+
+        # Herbs: C_i is the same for every herb in a given cell
+        # self.npp: (n_cells,); f_struct[herb_idx]: (n_herbs,)
+        C_herb = self.alpha_herbs / (self.alpha_herbs + B_trees)   # (n_cells,)
+        G[:, self.herb_idx] = (
+            (self.npp * self.psi)[:, np.newaxis]
+            * (1.0 - self.f_struct[self.herb_idx])[np.newaxis, :]
+            * C_herb[:, np.newaxis]
+        )
+
+        # Trees: C_i = B[i] / (alpha + B_trees) differs per tree species
+        if len(self.tree_idx) > 0:
+            C_tree = B[:, self.tree_idx] / (self.alpha_herbs + B_trees[:, np.newaxis])  # (n_cells, n_trees)
+            G[:, self.tree_idx] = (
+                (self.npp * self.psi)[:, np.newaxis]
+                * (1.0 - self.f_struct[self.tree_idx])[np.newaxis, :]
+                * C_tree
+            )
 
         return G
 
-    def save_output(self, B_traj: np.ndarray, t_eval: np.ndarray, output_dir) -> None:
+    def save_output(self, B_traj: NDArray[np.float64],
+                    t_eval: NDArray[np.float64], output_dir) -> None:
         """
         Save instantaneous vegetation growth rates for all basal species to vegetation.txt.
 
-        Evaluates growth(B, cell) at every recorded time point and cell using the
-        saved biomass trajectory, then writes a long-format table.
+        Evaluates growth_all_cells() at every recorded time point — no inner cell loop.
 
         Columns: pixel_id, x, y, time, species, delta_biomass
           delta_biomass = G_i (g/m²/day) — the NPP-driven growth contribution
@@ -96,9 +123,8 @@ class PlantVegetationModel:
 
         G_arr = np.zeros((n_tp, n_cells, n_basal))
         for t_idx in range(n_tp):
-            for cell_idx in range(n_cells):
-                G = self.growth(B_traj[t_idx, cell_idx, :], cell_idx)
-                G_arr[t_idx, cell_idx, :] = G[self.basal_idx]
+            G = self.growth_all_cells(B_traj[t_idx])      # (n_cells, S) — no inner cell loop
+            G_arr[t_idx] = G[:, self.basal_idx]
 
         cell_x = self.env['x'].values.astype(int)
         cell_y = self.env['y'].values.astype(int)
