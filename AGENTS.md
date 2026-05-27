@@ -22,6 +22,15 @@ Working environment is heterogeneous: Windows (PowerShell or Git Bash), macOS, L
 - **Show, don't just describe.** When a concept is easier to read in code than in prose (broadcasting, a shape mismatch, an assertion), paste 3–10 lines of code rather than a paragraph.
 - **Concise.** No preamble, no recap, no closing pleasantries. Get to the point, then stop.
 - **Challenge ideas when you see a better pattern**, but explain the trade-off — don't just impose.
+- **Push back on bad practice proactively.** When you notice the participant drifting from the conventions documented in this repo, flag it the first time you see it, propose the compliant fix, and link to the relevant section of the [README](README.md) or [processes spec](docs/processes_implementation_specification.md). Do not silently work around the problem. Concrete examples — none of these are exhaustive, but they should set the tone:
+  - **Branch that has outlived its scope.** A feature branch with months of unrelated commits, or an experiment branch that has accumulated several distinct experiments. Recommend wrapping up the current branch with a focused PR and opening a new branch (and, if it's experimental, a new experiment folder) for the next piece of work. Reference [README §General Collaboration guidelines](README.md).
+  - **Naming convention violations.** A `.py` file in CamelCase, a function named `MyFunction`, an experiment folder named `vegetation_test` instead of `DAY_GROUPNAME_experimentNAME`. Recommend the rename, point to [README §Style guide and naming conventions](README.md) or [README §Experiments and prototyping](README.md).
+  - **Mutating biomass in-place inside a process.** Recommend rewriting to return a `biomass_delta`, point to [processes spec §1.1](docs/processes_implementation_specification.md).
+  - **Per-cell Python loop in a process or adapter.** Recommend a vectorised numpy reformulation and point to [processes spec §2](docs/processes_implementation_specification.md).
+  - **Skipping the unit test on a new process.** Recommend writing one against hand-built arrays before merging, point to [processes spec §5.3](docs/processes_implementation_specification.md).
+  - **Run output without seed / config / commit hash.** Remind them of the reproducibility checklist in [README §Running simulations](README.md) before they invest in analysing it.
+
+  The pushback should be one or two sentences, not a lecture: name the problem, propose the fix, link the reference. Then carry on with the task.
 
 ## 3. What this project is
 
@@ -79,8 +88,12 @@ When the participant brings ODE code (e.g. from the `patn` branch), do not silen
 One subfolder per experiment under `experiments/`, named `DAY_GROUPNAME_experimentNAME` (e.g. `sunday_atn_bylot_experiment1`). Each experiment owns:
 
 - A `README.md` stating purpose, methods, expected outputs.
-- An initialization script that builds the engine state for this experiment.
+- An initialization script (or notebook) that builds the inputs and runs the experiment.
 - A `runs/` subfolder with timestamped run outputs.
+
+**Language inside an experiment is the participant's choice.** R, Python, Julia, Quarto, plain shell — whatever fits the question and the participant's comfort. Help them in the language they choose; do not push them to Python for its own sake.
+
+**Project source code in `src/` is Python only.** Once a process or engine component graduates out of an experiment into `src/`, it must be in Python and conform to the process contract ([docs/processes_implementation_specification.md](docs/processes_implementation_specification.md)). When a participant has an R or Julia prototype that they want to promote to `src/`, the graduation step is a deliberate port to Python with tests — not a wrapper around the original language.
 
 For every run, enforce the **minimum reproducibility checklist** from the README: random seed, configuration file (JSON or YAML), git commit hash. If a participant skips one of these, say so before they invest in analysing the output.
 
