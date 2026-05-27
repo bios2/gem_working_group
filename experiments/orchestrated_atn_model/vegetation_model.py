@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Dict
 
 import numpy as np
+<<<<<<< HEAD
 from numpy.typing import NDArray
+=======
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 import pandas as pd
 
 
@@ -16,11 +19,28 @@ class PlantVegetationModel:
     """
     NPP-driven plant biomass growth model.
 
+<<<<<<< HEAD
     growth()          accepts B: (S,)         — used by the single-cell interface
     growth_all_cells() accepts B: (n_cells, S) — used by derivatives() and save_output()
     """
 
     def __init__(self, traits_df: pd.DataFrame, env_df: pd.DataFrame, config: Dict):
+=======
+    The ATN passes the current biomass vector and cell index to this class.
+    The vegetation model returns a growth-rate vector G with one entry per
+    species; non-basal species receive zero growth.
+    """
+
+    def __init__(self, traits_df: pd.DataFrame, env_df: pd.DataFrame, config: Dict):
+        """
+        Initialize plant vegetation state and parameters.
+
+        Parameters:
+            traits_df: DataFrame with species traits, including is_basal and vegetation_type
+            env_df: DataFrame with per-cell environmental inputs, including NPP
+            config: Dict with vegetation parameters
+        """
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
         self.traits = traits_df
         self.env = env_df
         self.cfg = config
@@ -42,6 +62,7 @@ class PlantVegetationModel:
         self.alpha_herbs = config['alpha_herbs_default']
         self.psi = config['psi']
 
+<<<<<<< HEAD
         # Pre-extract NPP for vectorised multi-cell calls — avoids repeated DataFrame lookup
         self.npp = env_df['NPP'].values.astype(float)  # (n_cells,)
 
@@ -113,6 +134,44 @@ class PlantVegetationModel:
         Save instantaneous vegetation growth rates for all basal species to vegetation.txt.
 
         Evaluates growth_all_cells() at every recorded time point — no inner cell loop.
+=======
+    def growth(self, B: np.ndarray, cell_idx: int, t: float = None) -> np.ndarray:
+        """
+        Compute NPP-driven leaf biomass growth rate G_i for each basal species.
+
+        Implements the vegetation.md equation:
+            G_i = NPP * psi * (1 - f_struct_i) * C_i
+
+        Competitive partition C_i:
+            Herb i:  C_i = alpha / (alpha + B_trees)
+            Tree i:  C_i = B[i]  / (alpha + B_trees)
+
+        The optional time argument is accepted so this interface can later
+        support seasonal or time-varying vegetation drivers.
+        """
+        del t  # Reserved for future time-dependent vegetation dynamics.
+
+        G = np.zeros(self.n_species)
+        NPP = self.env.loc[cell_idx, 'NPP']
+        B_trees = float(np.sum(B[self.tree_idx])) if len(self.tree_idx) > 0 else 0.0
+
+        for i in self.herb_idx:
+            C_i = self.alpha_herbs / (self.alpha_herbs + B_trees)
+            G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
+
+        for i in self.tree_idx:
+            C_i = B[i] / (self.alpha_herbs + B_trees)
+            G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
+
+        return G
+
+    def save_output(self, B_traj: np.ndarray, t_eval: np.ndarray, output_dir) -> None:
+        """
+        Save instantaneous vegetation growth rates for all basal species to vegetation.txt.
+
+        Evaluates growth(B, cell) at every recorded time point and cell using the
+        saved biomass trajectory, then writes a long-format table.
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 
         Columns: pixel_id, x, y, time, species, delta_biomass
           delta_biomass = G_i (g/m²/day) — the NPP-driven growth contribution
@@ -123,8 +182,14 @@ class PlantVegetationModel:
 
         G_arr = np.zeros((n_tp, n_cells, n_basal))
         for t_idx in range(n_tp):
+<<<<<<< HEAD
             G = self.growth_all_cells(B_traj[t_idx])      # (n_cells, S) — no inner cell loop
             G_arr[t_idx] = G[:, self.basal_idx]
+=======
+            for cell_idx in range(n_cells):
+                G = self.growth(B_traj[t_idx, cell_idx, :], cell_idx)
+                G_arr[t_idx, cell_idx, :] = G[self.basal_idx]
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 
         cell_x = self.env['x'].values.astype(int)
         cell_y = self.env['y'].values.astype(int)

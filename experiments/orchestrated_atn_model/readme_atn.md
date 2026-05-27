@@ -35,6 +35,7 @@ See the **Input Files** section below for column details and examples.
 python run_atn.py env_mat.txt adj_mat.txt traits.txt
 ```
 
+<<<<<<< HEAD
 Optional flags:
 
 ```bash
@@ -42,6 +43,9 @@ python run_atn.py env_mat.txt adj_mat.txt traits.txt --seed 123 --t_max 500
 ```
 
 Or via the Python API:
+=======
+Optional arguments (pass via the Python API):
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 
 ```python
 from run_atn import main
@@ -50,8 +54,12 @@ B_traj, t_eval, model = main(
     'env_mat.txt',
     'adj_mat.txt',
     'traits.txt',
+<<<<<<< HEAD
     t_max=500,   # simulation length in days (default: 100)
     seed=42,     # random seed for initial-biomass noise (default: 42)
+=======
+    t_max=500,         # simulation length in days (default: 100)
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 )
 ```
 
@@ -63,10 +71,18 @@ Results are saved to `atn_output/yyyymmddhhmmss/` (folder named with the run tim
 atn_output/
 └── 20260525143012/
     ├── simulation_summary.txt   ← species traits, grid info, all model constants
+<<<<<<< HEAD
     ├── vegetation.txt           ← instantaneous growth rates for all basal species
     └── atn_model.txt            ← instantaneous dB/dt for all consumer species
 ```
 
+=======
+    └── biomass.txt              ← long-format table (one row per pixel × time × species)
+```
+
+`biomass.txt` columns: `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
+
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 The console prints per-species final biomass and the fraction of cells where each species persists.
 
 ## Model Overview
@@ -77,6 +93,7 @@ The console prints per-species final biomass and the fraction of cells where eac
 └─────────────────────────────────────────────────────────────────┘
 
 INPUT FILES:
+<<<<<<< HEAD
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │ env_mat.txt │  │ adj_mat.txt │  │ traits.txt  │  │ config.txt  │
 │             │  │             │  │             │  │             │
@@ -131,6 +148,67 @@ INPUT FILES:
     │  atn_model.txt       │  │  final biomass) │
     │                      │  │                 │
     └──────────────────────┘  └────────────────┘
+=======
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ env_mat.txt  │  │ adj_mat.txt  │  │ traits.txt   │
+│              │  │              │  │              │
+│ Temp, NPP    │  │ Food-web     │  │ Body mass,   │
+│ per cell     │  │ links        │  │ veg. type    │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       └─────────────────┼─────────────────┘
+                         │
+                    ┌────▼────┐
+                    │VALIDATE │ (20+ sanity checks)
+                    └────┬────┘
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+   ┌────▼──────┐  ┌─────▼──────┐  ┌─────▼──────┐
+   │atn_io.py  │  │atn_model.py│  │config.txt  │
+   │           │  │            │  │            │
+   │Read & validate           Initialize model
+   └────┬──────┘  │            │  │parameters  │
+        │         │            │  └──────────┬─┘
+        │         │            │             │
+        └─────────┼────────────┼─────────────┘
+                  │            │
+            ┌─────▼────────────▼────┐
+            │   ATN Model Instance   │
+            │   (ATNModel class)     │
+            │                        │
+            │  Stores:               │
+            │  - Species traits      │
+            │  - Food-web adjacency  │
+            │  - Herb/tree indices   │
+            │  - Allometric params   │
+            └─────────┬──────────────┘
+                      │
+        ┌─────────────┼─────────────┐
+        │             │             │
+    ┌───▼───┐     ┌───▼───┐     ┌──▼────┐
+    │ Cell  │     │ Cell  │     │ Cell  │  ... (independent cells)
+    │   0   │     │   1   │     │  N    │
+    └───┬───┘     └───┬───┘     └──┬────┘
+        │             │            │
+        ├─────────────┼────────────┤  For each cell:
+        │             │            │  1. Get temperature T_K and NPP
+        │  ODE        │  ODE       │  2. Compute allometric rates
+        │ SOLVER      │ SOLVER     │  3. Integrate dB/dt for each species
+        │ (scipy.     │ (scipy.    │  4. Apply NPP-driven growth (basal)
+        │ odeint)     │ odeint)    │  5. Apply Holling Type II (consumers)
+        │             │            │
+    ┌───▼───────────────────────────▼──┐
+    │  Biomass Trajectory B(t, cell, sp) │
+    │  Output shape: (time, cells, spp) │
+    └───┬────────────────────────────┬──┘
+        │                            │
+    ┌───▼────────────┐  ┌───────────▼────┐
+    │ Save output    │  │ Print summary   │
+    │ biomass.txt +  │  │ (persistence,   │
+    │ summary.txt    │  │  final biomass) │
+    └────────────────┘  └─────────────────┘
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 
 
 EQUATIONS (per cell, g/m²/day):
@@ -165,6 +243,7 @@ PARAMETER FLOW:
 
 config.txt (read by atn_io.read_config())
    ↓
+<<<<<<< HEAD
 ATNModel.__init__() precomputes temperature-independent allometric arrays:
    base_a (S×S), base_h (S×S), base_X (S,), E (S×S)
    ↓
@@ -179,12 +258,33 @@ ATNModel.derivatives(B, t)   B shape: (n_cells, S)
 Returns B_traj: (n_tp, n_cells, S)
    ↓
 Rates saved to atn_output/yyyymmddhhmmss/vegetation.txt and atn_model.txt
+=======
+ATNModel.__init__() extracts rates:
+   psi, f_struct, alpha_herbs, X0, b_X, a0, b_a_prey, b_a_pred, h0, etc.
+   ↓
+ATNModel.run_all_cells()
+   ↓
+For each cell: ATNModel.derivatives(B, t, cell_idx)
+   ├─ Compute T_K and NPP from env_df[cell_idx]
+   ├─ Compute a_ij(M, T) and h_ij(M, T) matrices
+   ├─ Compute X(M, T) vector
+   ├─ For each basal species i:
+   │  └─ dB_i/dt = vegetation_growth(B, NPP, C_i) - loss
+   ├─ For each consumer species j:
+   │  └─ dB_j/dt = feeding_gain(Σ e_i F_ij) - loss
+   └─ Return dydt vector
+       ↓
+ODE solver (scipy.odeint) integrates forward in time
+   ↓
+Biomass trajectory saved to atn_output/yyyymmddhhmmss/biomass.txt (long format)
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 ```
 
 ## Function Call Graph
 
 ```
 ATNModel.__init__(adj_mat, traits_df, env_df, config)
+<<<<<<< HEAD
 │  Precomputes base_a, base_h, base_X, E (temperature-independent, shape S×S or S)
 │  Instantiates PlantVegetationModel (owns herb_idx, tree_idx, f_struct, npp)
 │
@@ -203,12 +303,39 @@ ATNModel.__init__(adj_mat, traits_df, env_df, config)
                 └── vegetation.growth_all_cells(B)   → G: (n_cells, S)
                         herb: C_i = α / (α + B_trees)
                         tree: C_i = B_i / (α + B_trees)
+=======
+│  Reads adj_mat, traits_df, env_df; extracts allometric constants from config
+│  Instantiates PlantVegetationModel (owns herb_idx, tree_idx, f_struct, alpha_herbs)
+│
+└── run_all_cells(B_initial, t_eval)
+        │  iterates over spatial cells
+        │
+        └── run_cell(B_initial[cell], cell_idx, t_eval)
+                │  wraps scipy.odeint for one cell
+                │
+                └── derivatives(y, t, cell_idx)     ← ODE RHS, called each solver step
+                        │
+                        ├── _allometric_rate('attack')    → a_ij  (n_spp × n_spp)
+                        ├── _allometric_rate('handling')  → h_ij  (n_spp × n_spp)
+                        ├── _metabolic_rate()             → X     (n_spp,)
+                        ├── vegetation.growth(B, cell)   → G     (n_spp,)   [PlantVegetationModel]
+                        │       reads NPP from env_df[cell_idx]
+                        │       herb: C_i = α/(α + B_trees)
+                        │       tree: C_i = B[i]/(α + B_trees)
+                        │
+                        └── _functional_response(B, j)   → F_ij  (n_spp,)  per consumer j
+                                └─ uses a_ij, h_ij set above
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 ```
 
 ## Requirements
 
 ```bash
+<<<<<<< HEAD
 pip install numpy pandas
+=======
+pip install numpy scipy pandas
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 ```
 
 ## Quick Start
@@ -224,10 +351,16 @@ from run_atn import main
 
 B_traj, t_eval, model = main(
     'env_mat.txt',
+<<<<<<< HEAD
     'adj_mat.txt',
     'traits.txt',
     t_max=500,   # simulate for 500 days
     seed=42,     # random seed (default: 42)
+=======
+    'adj_mat.txt', 
+    'traits.txt',
+    t_max=500,           # simulate for 500 days
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 )
 ```
 
@@ -320,11 +453,16 @@ Saved to `atn_output/yyyymmddhhmmss/` (one timestamped folder per run).
 ### simulation_summary.txt
 
 Human-readable record of the run:
+<<<<<<< HEAD
 - Run timestamp, random seed, and git commit hash
+=======
+- Run timestamp
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 - Number of species, time steps, pixels, and grid dimensions
 - Full species trait table (`species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2`)
 - All model constants from `config.txt` with descriptions
 
+<<<<<<< HEAD
 ### vegetation.txt
 
 Long-format table of instantaneous vegetation growth rates for all basal species.
@@ -340,6 +478,22 @@ Long-format table of instantaneous dB/dt for all consumer species.
 **Columns:** `pixel_id`, `x`, `y`, `time`, `species`, `delta_biomass`
 
 `delta_biomass` = full consumer dB_j/dt (g/m²/day): feeding gain minus metabolic loss minus predation.
+=======
+### biomass.txt
+
+Long-format table with one row per pixel × time step × species combination.
+
+**Columns:** `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
+
+**Example rows:**
+```
+pixel_id x y time_step species_id biomass
+0 0 0 0.0000 0 1.002345e+01
+0 0 0 0.0000 1 8.012456e+00
+...
+2 0 2 100.0000 39 5.123400e-03
+```
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 
 ### Load and analyze results:
 
@@ -347,6 +501,7 @@ Long-format table of instantaneous dB/dt for all consumer species.
 import pandas as pd
 import matplotlib.pyplot as plt
 
+<<<<<<< HEAD
 veg = pd.read_csv('atn_output/20260525143012/vegetation.txt', sep=' ')
 atn = pd.read_csv('atn_output/20260525143012/atn_model.txt', sep=' ')
 
@@ -361,6 +516,20 @@ plt.show()
 final_t = veg['time'].max()
 final_veg = veg[veg['time'] == final_t]
 print(final_veg.groupby('species')['delta_biomass'].mean())
+=======
+df = pd.read_csv('atn_output/20260525143012/biomass.txt', sep=' ')
+
+# Plot species 0 at pixel (0, 0) over time
+s0 = df[(df['species_id'] == 0) & (df['x'] == 0) & (df['y'] == 0)]
+plt.plot(s0['time_step'], s0['biomass'])
+plt.xlabel('Time (days)')
+plt.ylabel('Biomass (g/m²)')
+plt.show()
+
+# Final mean biomass per species across all pixels
+final = df[df['time_step'] == df['time_step'].max()]
+print(final.groupby('species_id')['biomass'].mean())
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 ```
 
 ## Configuration
@@ -409,10 +578,14 @@ python run_atn.py env_mat.txt adj_mat.txt traits.txt my_config.txt
 ```
 
 ```python
+<<<<<<< HEAD
 B_traj, t_eval, model = main(
     'env_mat.txt', 'adj_mat.txt', 'traits.txt',
     config_file='my_config.txt', seed=42
 )
+=======
+B_traj, t_eval, model = main('env_mat.txt', 'adj_mat.txt', 'traits.txt', config_file='my_config.txt')
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 ```
 
 ## Model Details

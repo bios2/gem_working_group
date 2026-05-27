@@ -8,12 +8,21 @@ This script orchestrates the entire workflow:
 4. Integrate ODEs forward in time
 5. Save results and print summary
 """
+<<<<<<< HEAD
 import numpy as np
 import pandas as pd
 import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
+=======
+# Import required libraries
+import numpy as np  # numerical arrays and math
+import pandas as pd  # data frame handling
+import sys  # system utilities (exit codes)
+from pathlib import Path  # cross-platform path handling
+from datetime import datetime  # timestamp for output folder name
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 # Import custom modules from this project
 from atn_io import (
     read_config,                                           # config reader
@@ -23,6 +32,7 @@ from atn_io import (
 )
 from atn_model import ATNModel  # the ODE model
 
+<<<<<<< HEAD
 def _git_commit_hash() -> str:
     """Return the current HEAD commit hash, or 'uncommitted' if the repo is dirty."""
     try:
@@ -42,6 +52,10 @@ def _git_commit_hash() -> str:
 def main(env_file: str, adj_file: str, traits_file: str,
          config_file: str = 'config.txt', t_max: float = 100.0,
          seed: int = 42):
+=======
+def main(env_file: str, adj_file: str, traits_file: str,
+         config_file: str = 'config.txt', t_max: float = 100.0):
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
     """
     Run the ATN model with full validation.
 
@@ -51,10 +65,14 @@ def main(env_file: str, adj_file: str, traits_file: str,
         traits_file: path to traits.txt (species traits: body mass, initial biomass)
         config_file: path to config.txt (model parameters)
         t_max: simulation end time (days); one output point is saved per day
+<<<<<<< HEAD
         seed: random seed for numpy (controls initial-biomass noise)
     """
     np.random.seed(seed)
     commit_hash = _git_commit_hash()
+=======
+    """
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
 
     # Print header banner
     print("=" * 70)
@@ -138,8 +156,11 @@ def main(env_file: str, adj_file: str, traits_file: str,
             fsum.write("=" * 60 + "\n")
             fsum.write("SIMULATION SUMMARY\n")
             fsum.write(f"Run timestamp : {timestamp}\n")
+<<<<<<< HEAD
             fsum.write(f"Random seed   : {seed}\n")
             fsum.write(f"Git commit    : {commit_hash}\n")
+=======
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
             fsum.write("=" * 60 + "\n\n")
 
             # --- Simulation dimensions ---
@@ -209,6 +230,30 @@ def main(env_file: str, adj_file: str, traits_file: str,
 
         print(f"  ✓ Saved simulation_summary.txt")
 
+<<<<<<< HEAD
+=======
+        # ===== WRITE LONG-FORMAT BIOMASS TABLE =====
+        # B_traj shape: (n_timepoints, n_cells, n_species)
+        # Output rows: one per (time_step × pixel × species)
+        # Flatten order matches C (row-major): time varies slowest, species fastest
+        n_tp = len(t_eval)
+        t_rep    = np.repeat(t_eval,                    n_cells * n_species)
+        cell_rep = np.tile(np.repeat(np.arange(n_cells), n_species), n_tp)
+        x_rep    = np.tile(np.repeat(cell_x,              n_species), n_tp)
+        y_rep    = np.tile(np.repeat(cell_y,              n_species), n_tp)
+        sp_rep   = np.tile(np.arange(n_species),         n_tp * n_cells)
+        bio_rep  = B_traj.ravel()
+
+        table = np.column_stack([cell_rep, x_rep, y_rep, t_rep, sp_rep, bio_rep])
+        np.savetxt(
+            output_dir / 'biomass.txt', table,
+            fmt=['%d', '%d', '%d', '%.4f', '%d', '%.6e'],
+            header='pixel_id x y time_step species_id biomass',
+            comments=''
+        )
+        print(f"  ✓ Saved biomass.txt ({len(table):,} rows)")
+
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
         model.vegetation.save_output(B_traj, t_eval, output_dir)
         print(f"  ✓ Saved vegetation.txt")
         model.save_consumer_output(B_traj, t_eval, output_dir)
@@ -271,6 +316,7 @@ def main(env_file: str, adj_file: str, traits_file: str,
         sys.exit(1)
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     import argparse
     parser = argparse.ArgumentParser(description='Run the spatially explicit ATN model.')
     parser.add_argument('env_file',    nargs='?', default='env_mat.txt')
@@ -286,3 +332,21 @@ if __name__ == '__main__':
         args.env_file, args.adj_file, args.traits_file,
         config_file=args.config_file, t_max=args.t_max, seed=args.seed
     )
+=======
+    # Allow command-line arguments for filenames
+    if len(sys.argv) > 1:
+        # Use provided filenames
+        env_f    = sys.argv[1]
+        adj_f    = sys.argv[2]
+        traits_f = sys.argv[3]
+        config_f = sys.argv[4] if len(sys.argv) > 4 else 'config.txt'
+    else:
+        # Use default filenames
+        env_f    = 'env_mat.txt'
+        adj_f    = 'adj_mat.txt'
+        traits_f = 'traits.txt'
+        config_f = 'config.txt'
+
+    # Run the model
+    B_traj, t_eval, model = main(env_f, adj_f, traits_f, config_file=config_f, t_max=100)
+>>>>>>> refs/remotes/origin/orchestrated_vegatn

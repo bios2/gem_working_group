@@ -16,6 +16,7 @@ experiments/sunday_vegetation_experiments_design/context/MadingleyR/
 
 # macOS
 .DS_Store
+<<<<<<< HEAD
 
 # Python cache
 __pycache__/
@@ -28,3 +29,5 @@ __pycache__/
 experiments/sunday_vegetation_experiments_design/context/MadingleyR/
 
 
+=======
+>>>>>>> refs/remotes/origin/orchestrated_vegatn
