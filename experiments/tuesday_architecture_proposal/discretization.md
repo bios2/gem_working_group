@@ -1,6 +1,6 @@
 # Discretization: ODE vs discrete-time, and what the engine contract should be
 
-This document synthesizes the findings, analysis, and recommendation from a working session on whether the simulation engine should ask processes to return **discrete biomass deltas** (`delta_B` per engine time step) or **continuous-time derivatives** (`dB/dt`). It supports criticism #2 and criticism #4 in [`README.md`](README.md) and the contract specification in [`context/process_contract_spec.md`](context/process_contract_spec.md).
+This document synthesizes the findings, analysis, and recommendation from a working chat session on whether the simulation engine should ask processes to return **discrete biomass deltas** (`delta_B` per engine time step) or **continuous-time derivatives** (`dB/dt`). It supports criticism #2 and criticism #4 in [`README.md`](README.md) and the contract specification in [`context/process_contract_spec.md`](context/process_contract_spec.md).
 
 ## 1. Background: two ways of writing a dynamical process
 
@@ -21,7 +21,7 @@ Logistic growth in `engine_v2` and logistic growth as a term in the ATN equation
 - `run_cell(...)` calls `scipy.integrate.odeint` on `derivatives` to integrate the cell's dynamics over a time grid.
 - `run_all_cells(...)` loops over cells in Python, calling `run_cell` once per cell.
 
-This structure already embodies the split between *pure science* and *engine integration* that criticism #2 in `README.md` recommends. It is also where the global-scale performance issue lives: at 180×360 cells, `run_all_cells` makes 64,800 Python-level `scipy.odeint` calls per simulated period.
+This structure already embodies the split between *science formulation* and *engine integration* that criticism #2 in `README.md` recommends. It is also where the global-scale performance issue lives: at 180×360 cells, `run_all_cells` makes 64,800 Python-level `scipy.odeint` calls per simulated period.
 
 ### 2.2 `engine_v2` is written as discrete-time
 

@@ -66,7 +66,7 @@ I'd prefer two layers:
 
 The adapter is what the engine registers. The science lives in code that does not depend on the engine at all.
 
-The full signature, output, shape, and module-layout conventions implied by this split are written up as a contract specification in [`context/process_contract_spec.md`](tuesday_architecture_proposal/context/process_contract_spec.md). In short: science functions return a discrete biomass delta over one engine time step, take and return arrays of shape `(..., S)` with species on the last axis, and live in a `processes/<name>/science.py` module that imports nothing from the engine. The adapter lives next to it in `processes/<name>/adapter.py` and is the only piece that touches `grid` / `env` / `registry`. Shared numerical helpers (e.g. an RK4 step for ODE-style processes) live in `processes/shared/`.
+The full signature, output, shape, and module-layout conventions implied by this split are written up as a contract specification in [`context/process_contract_spec.md`](tuesday_architecture_proposal/context/process_contract_spec.md). In short: science functions return a discrete biomass delta over one time step, take and return arrays of shape `(..., S)` with species on the last axis, and live in a process module `<name>.py` that is independant of the engine. The process adapters lives next to the engine in `processes.py` and is the only piece that touches `grid` / `env` / `registry`.
 
 ### 3. Group-restricted processes
 
@@ -82,6 +82,6 @@ The ATN implementation on the `patn` branch is written as a system of **Ordinary
 
 I am not personally familiar enough with the trade-offs to decide this on my own, especially given the constraints I do care about: global-scale performance, long time series, testability of individual processes, reusability, and scientific transparency for non-engineer contributors.
 
-The proposal, after a working session on this question, is to make the engine contract a **discrete biomass delta per engine time step**. ODE-style processes (ATN today, possibly others later) integrate their rate to a delta **inside their own adapter** using a shared numerical helper (e.g. a vectorised RK4 step). The engine never sees rates; it only sees deltas, which it sums and applies at the end of the step. This keeps one signature for the engine, vectorises naturally across the full `(X, Y, S)` grid, lets each adapter make its numerical scheme explicit alongside the science, and preserves ATN's scientific fidelity through a one-time validation against the existing `scipy.odeint` path.
+The proposal, after a Claude discussion on this question, is to make the engine contract a **discrete biomass delta per engine time step**. ODE-style processes (ATN today, possibly others later) integrate their rate to a delta **inside their own adapter, or are rewritten to directly return the delta**. The engine never sees rates; it only sees deltas, which it sums and applies at the end of the step.
 
 The full findings, comparison, and rationale are written up in [`discretization.md`](tuesday_architecture_proposal/discretization.md). The output and shape conventions this implies for every process are specified in [`context/process_contract_spec.md`](tuesday_architecture_proposal/context/process_contract_spec.md).
