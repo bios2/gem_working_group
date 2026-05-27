@@ -36,7 +36,7 @@ gem-working-group/
 ├── docs/         # Reference documents — contracts, specifications, design notes
 ├── experiments/  # Prototypes and experiments; one subfolder per experiment
 ├── papers/       # Reference papers and bibliography
-├── src/          # The simulation package (engine + processes), added when implementation starts
+├── src/          # The model code package (processes + engine), added when implementation starts
 └── README.md
 ```
 
@@ -44,7 +44,16 @@ Everyday work happens in `experiments/` while the model is being prototyped. Onc
 
 ## Python packaging and environment
 
-We use Python with three core dependencies: `numpy` (numerical arrays — the backbone of every process), `scipy` (numerical integration for ODE-style processes), and `pytest` (running tests). Spatial and tabular libraries (`geopandas`, `rasterio`, `xarray`, `pandas`) are added as data-handling needs grow.
+We use Python. The dependencies actually used across the prototype branches are:
+
+- `numpy` — numerical arrays, the backbone of every process.
+- `scipy` — numerical integration for ODE-style processes (`scipy.integrate.solve_ivp`, `odeint`).
+- `pandas` — tabular data handling (species traits, parameter tables, diagnostics).
+- `matplotlib` — plotting for experiments and figure reproduction.
+- `rasterio` — reading and writing GeoTIFF spatial inputs.
+- `pytest` — the recommended test runner for unit tests (see *Model development*).
+
+Additional libraries (e.g. `xarray`, `geopandas`) are added only when a process actually needs them.
 
 Dependencies and packaging metadata live in a single `pyproject.toml` at the repo root. No `setup.py`, no `requirements.txt` — `pyproject.toml` is the only source of truth, so there is nothing to keep in sync by hand.
 
@@ -59,6 +68,8 @@ pytest                           # confirm everything works
 ```
 
 `pip install -e .` installs the project in **editable mode**: changes you make to the source code take effect immediately without reinstalling. The `.venv/` folder is local to your machine and is gitignored — never commit it. Each team member recreates it from `pyproject.toml`.
+
+VS Code detects automatically a virtual environment in the project folder and recommends you to activate it when you start working with a virtual environment in your workspace. 
 
 ## Style guide and naming conventions
 
@@ -97,6 +108,18 @@ Adding a new process is the same recipe every time: write a typed science functi
 
 ## Input data files
 
+Input data lives in `data/` with two subfolders:
+
+- `data/raw/`: untouched inputs as downloaded from their source (climate reanalyses, species traits, occurrences, ...). Never edit these by hand.
+- `data/processed/`: inputs reprojected onto the engine grid (see *Geographic grid*), cleaned, or otherwise prepared for the engine to consume.
+
+**Formats.** GeoTIFF (`.tif`) for spatial raster data (temperature maps, carrying capacity, ...). CSV or JSON for tabular data (species traits, parameter sets, ...). Avoid project-specific binary formats — they make data hard to inspect outside the engine.
+
+**File naming.** Include the date and a short descriptor: `data/raw/era5_temperature_2024-06-01.tif`, `data/processed/species_traits_bylot_v2.csv`. This keeps reruns reproducible because the filename itself records which version was used.
+
+**Large files.** Large rasters are gitignored. Each `data/raw/` subfolder should include a small script (`download.py` or `download.sh`) that reproduces the download, so the team can rebuild the dataset without committing gigabytes to git.
+
+**Reprojection** of raw inputs onto the engine's projected grid happens in `data/processed/`, not inside the engine or in processes. The engine consumes already-projected data.
 
 ## Geographic grid
 
@@ -111,25 +134,31 @@ Cell ID: `NA100_R{row}_C{col}` from upper-left or lower-left origin, documented 
 
 ## Simulation engine
 
-<!-- Describing Alex's engine state management species registry. There should be a doc describing that  -->
+The engine is the runtime glue around the modular processes described in *Model development*. It is intentionally small — most of the action is in the science modules — and is built around three shared state objects ("the cart") that travel together through every process, plus a pipeline that runs the processes in order on each time step.
 
-The engine drives a simulation forward by composing process functions (see *Model development*) into a pipeline that updates a shared `(X, Y, S)` biomass array over cells and species each time step.
+- **State management.** Three objects hold all of the model's state, and they are the **single source of truth** — processes read from them and write back to them rather than keeping their own copies:
+  - `EcosystemGridState`: the dynamic `(X, Y, Species)` biological state. Holds a `biomass` layer by default, plus any named layers processes register — the shared `biomass_delta` layer that biomass-modifying processes accumulate into, dependency outputs like `metabolic_rate`, and so on.
+  - `EnvironmentState`: the `(X, Y)` environmental layers (temperature, carrying capacity, ...). Layers are added by name and shape-checked against the grid.
+  - `SpeciesRegistry`: the species list, the functional or trophic groups they belong to (`plants`, `herbivores`, ...), per-species traits stored as 1D arrays for fast vectorised math, and the feeding adjacency matrix.
+- **Adapters (`processes.py`).** Science modules import nothing from the engine. All engine glue lives in a single file, `processes.py`, holding one `apply_<process>(grid, env, dt)` per process. An adapter slices the right state arrays, fetches parameters, calls the science function, and writes the result back — biomass-modifying adapters accumulate into the shared delta layer; dependency adapters write to a named shared layer.
+- **Broadcasting.** Every process operates on numpy arrays at its natural shape — `(S,)` for a single cell, `(Y, S)` for a row, `(X, Y, S)` for the full grid. Adapters reshape per-species parameters to `(1, 1, S)` and environmental layers to `(X, Y, 1)` so they broadcast cleanly against the `(X, Y, S)` biomass array. The same science code then runs unchanged from a unit test on a `(3,)` array to a global simulation.
+- **Initialization.** Setting up a run means building the three state objects: define the grid extent and projection (see *Geographic grid*), load environmental layers from `data/processed/`, load the species list and traits, set initial biomass. Initialization is a regular Python function — not a config file — so it can be parametrised and reused across experiments. Each experiment owns its own initialization script.
+- **Pipeline registration.** Each adapter is registered with the engine in pipeline order via `engine.add_process(apply_metabolism)`. Dependency-process adapters must be registered before any adapter that consumes their output. Removing a process is deleting one line.
 
-- **State management.** <!-- TODO: EcosystemGridState, EnvironmentState, SpeciesRegistry, shared delta layer -->
-- **Adapters (`processes.py`).** Science modules import nothing from the engine. All engine glue lives in a single file, `processes.py`, holding one `apply_<process>(grid, env, dt)` per process. Adapters slice the right state arrays, fetch parameters, call the science function, and write the result back — biomass-modifying adapters accumulate into the shared delta layer, dependency adapters write to a named shared layer.
-- **Broadcasting.** <!-- TODO: how grid layers, environment layers, and per-species parameters are reshaped to broadcast against the (X, Y, S) biomass array -->
-- **Initialization.** <!-- TODO: building the grid, loading initial conditions, species traits, environmental layers -->
-- **Pipeline registration.** Each adapter is registered with the engine in pipeline order. Dependency-process adapters must run before any adapter that consumes their output.
-
+The end-of-step integration applies the accumulated `biomass_delta` to the biomass layer and zeroes the delta. This makes within-step computation order-independent (every process sees the same `state_t`) and matches how the underlying equations are usually written: a sum of contributions.
 
 ## Running simulations
 
-Inside experiments folder. Store relevant data.
+Simulations live in `experiments/`, one subfolder per experiment (see *Experiments and prototyping*). Each experiment runs the engine for a defined set of conditions and stores its outputs locally.
 
----
-<!-- 
-- How to handle and store simulation runs (notebooks ?,  saved outputs ?) and how to make them accessible to the team. Make minimal requirements for reproducibility of runs (e.g. saving the random seed, saving the configuration file, etc.). Naming convention for runs and outputs with date and time and description.
-- Input data. Script to download and preprocess input data (e.g. environmental data, species traits, etc.) and store them in a standardized format that can be easily accessed by the engine and processes. We recommend using geotiff to store spatial data and csv or json for tabular data. We also recommend using a standardized directory structure for input data (e.g. data/raw, data/processed, etc.) and a naming convention for files (e.g. data/raw/environmental_data_2024-06-01.tif). Local gitignores for large .tiff datasets that are not stored in the repository but can be downloaded and processed by the script.
-- Initialization scripts for the engine (e.g. to set up the grid, load initial conditions, species list and traits, load the input data). To be described in engine section. Should be modular and reusable for different runs and configurations. Should also include error handling and logging to facilitate debugging and tracking of runs.
+**Minimum reproducibility checklist.** Every run should record:
 
- -->
+- The **random seed** used (if any stochastic process is involved).
+- The **configuration**: initial state, environmental data files, species list, parameter values, number of time steps, `dt`. A small JSON or YAML file alongside the outputs is sufficient.
+- The **engine version**: the git commit hash the run was produced from.
+
+Without these three, a result cannot be reproduced.
+
+**Output storage.** Save outputs inside the experiment folder under a timestamped run name, e.g. `experiments/sunday_atn_bylot_experiment1/runs/2026-05-27_baseline/`. The folder should contain the biomass trajectory (NetCDF or `.npz` for arrays, CSV for tabular diagnostics), the configuration file, and any plots. Large outputs are gitignored; commit only what is small and informative (configuration, diagnostics, key plots).
+
+**Sharing runs.** Notebooks are useful for exploring outputs but should not be the canonical record. Keep the data files self-describing (column names, units in metadata) so a teammate can reopen them without needing your notebook.
