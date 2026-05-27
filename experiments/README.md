@@ -85,3 +85,22 @@ I am not personally familiar enough with the trade-offs to decide this on my own
 The proposal, after a Claude discussion on this question, is to make the engine contract a **discrete biomass delta per engine time step**. ODE-style processes (ATN today, possibly others later) integrate their rate to a delta **inside their own adapter, or are rewritten to directly return the delta**. The engine never sees rates; it only sees deltas, which it sums and applies at the end of the step.
 
 The full findings, comparison, and rationale are written up in [`discretization.md`](tuesday_architecture_proposal/discretization.md). The output and shape conventions this implies for every process are specified in [`context/process_contract_spec.md`](tuesday_architecture_proposal/context/process_contract_spec.md).
+
+### 5. Spatial grid should be on an equal-area projection, not lat-lon
+
+The current `(X, Y)` grid in `engine_v2` seems to mention lat-lon grid. 
+
+Lat-lon cells are not equal-area: a cell at 60° N covers roughly half the surface area of a cell at the equator, and cells near the poles collapse to slivers. Most of what the model computes is per-area in nature — biomass densities, carrying capacities, NPP, area-normalized dispersal fluxes — so a lat-lon grid silently biases every spatial aggregation (global totals, biome means, flux balances) and distorts dispersal kernels whose distances are written in kilometres.
+
+The implementation should be done on an **equal-area projection**, so that one cell = one comparable unit of surface area and processes can be written in clean per-area terms.
+
+This is minor - the engine seems to already handle the grid correctly, but we want to take this into account in the design to avoid accidentally baking in lat-lon assumptions. Concretely:
+
+- the grid contract should not assume that `(X, Y)` indices map to (longitude, latitude). It should carry the projection as metadata; It could eventually carry methods to convert between grid indices and lat-lon if needed, but that is not a priority for now; This should be reflected in the naming of the grid axes (e.g. `X` and `Y` rather than `lon` and `lat`) to avoid confusion and examples.
+- Should `EnvironmentState` expose a `cell_area` layer (even if it is constant under an equal-area projection) ? So processes that depend on area are explicit about it and remain correct if the projection is ever changed;
+- dispersal and any other distance-based process should consume distances from the projected grid, not from raw degree differences.
+- Current recommendation will be scoped to North America using the Albers equal-area projection, but the engine should be flexible enough to switch to another projection or region if needed.
+
+Reprojecting raw inputs (climate reanalyses, species occurrences, ...) onto the engine's grid is **out of scope for the engine** and belongs to data preparation upstream. The engine's responsibility is only to consume an already-projected grid correctly.
+
+The point is not to pick the projection now, but to make sure the engine's shape contract does not bake in the lat-lon assumption — switching projections later should be a configuration change, not a refactor of every process.
