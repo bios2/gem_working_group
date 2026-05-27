@@ -56,11 +56,16 @@ We recommend using Jupyter notebooks for prototyping and documentation, but feel
 
 ## Model development
 
-<!-- Implementation details for processes into module from processes contract -->
+The model evolves the ecosystem by composing modular **processes** — vegetation growth, ATN trophic dynamics, dispersal, metabolism, fire, and so on. Each process is implemented as a pure numpy function with a typed signature.
 
-- <!-- Big idea -->
-- Numpy structures ...
-- ...
+The full contract is specified in [docs/processes_implementation_specification.md](docs/processes_implementation_specification.md). What every contributor needs to know:
+
+- **Two process categories.** Biomass-modifying processes (vegetation, ATN, dispersal) return a `biomass_delta` array — the finite change in biomass over one time step `dt`. Dependency processes (metabolism, NPP, ...) return a shared intermediate quantity (rate, flux, factor) consumed by *multiple* biomass-modifying processes; they take no `dt`.
+- **Numpy at the process's natural dimensionality.** The same science code runs on a single cell, a row, or the full `(X, Y, S)` grid via standard broadcasting. Per-cell python loops are the main performance trap and are not acceptable.
+- **Typed signatures, runtime shape asserts.** All arrays are `NDArray[np.float64]`; scalars are `float`. A one-line shape `assert` at the top of each science function catches broadcast mismatches early.
+- **ODE-style processes** (ATN and any other rate-based formulation) pick an integration strategy explicitly — either integrate `dB/dt` to a delta (`scipy.solve_ivp` or a vectorised RK4 step) or rewrite the science to return `biomass_delta` directly. A continuous-time rate is never the public output of a process.
+
+Adding a new process is the same recipe every time: write a typed science function in its own module (`vegetation.py`, `atn.py`, `dispersal.py`, `metabolism.py`, ...) that imports nothing but `numpy`, add a runtime shape assert, and add a unit test against hand-built arrays. How the function is wired into a running simulation is the engine's concern, covered below.
 
 ## Input data files
 
@@ -72,10 +77,13 @@ We recommend using Jupyter notebooks for prototyping and documentation, but feel
 
 <!-- Describing Alex's engine state management species registry. There should be a doc describing that  -->
 
-- State management
-- <!-- Processes adapters  -->
-- ...Broadcasting
-- Initialization
+The engine drives a simulation forward by composing process functions (see *Model development*) into a pipeline that updates a shared `(X, Y, S)` biomass array over cells and species each time step.
+
+- **State management.** <!-- TODO: EcosystemGridState, EnvironmentState, SpeciesRegistry, shared delta layer -->
+- **Adapters (`processes.py`).** Science modules import nothing from the engine. All engine glue lives in a single file, `processes.py`, holding one `apply_<process>(grid, env, dt)` per process. Adapters slice the right state arrays, fetch parameters, call the science function, and write the result back — biomass-modifying adapters accumulate into the shared delta layer, dependency adapters write to a named shared layer.
+- **Broadcasting.** <!-- TODO: how grid layers, environment layers, and per-species parameters are reshaped to broadcast against the (X, Y, S) biomass array -->
+- **Initialization.** <!-- TODO: building the grid, loading initial conditions, species traits, environmental layers -->
+- **Pipeline registration.** Each adapter is registered with the engine in pipeline order. Dependency-process adapters must run before any adapter that consumes their output.
 
 
 ## Running simulations
@@ -84,7 +92,6 @@ Inside experiments folder. Store relevant data.
 
 ---
 <!-- 
-- Dependancies modules (ex. metabolism) that do not return biomass but are reused by multiple processes. Should be specified in processes contract. Processes should return biomass delta, or biomass delta and other outputs (e.g. fluxes, rates, etc.) that are relevant to the process and can be used by other processes or for analysis. Their outputs should be stored in broadcasting-friendly data structures that can be easily accessed by other processes and engine.
 - How to handle and store simulation runs (notebooks ?,  saved outputs ?) and how to make them accessible to the team. Make minimal requirements for reproducibility of runs (e.g. saving the random seed, saving the configuration file, etc.). Naming convention for runs and outputs with date and time and description.
 - Input data. Script to download and preprocess input data (e.g. environmental data, species traits, etc.) and store them in a standardized format that can be easily accessed by the engine and processes. We recommend using geotiff to store spatial data and csv or json for tabular data. We also recommend using a standardized directory structure for input data (e.g. data/raw, data/processed, etc.) and a naming convention for files (e.g. data/raw/environmental_data_2024-06-01.tif). Local gitignores for large .tiff datasets that are not stored in the repository but can be downloaded and processed by the script.
 - Initialization scripts for the engine (e.g. to set up the grid, load initial conditions, species list and traits, load the input data). To be described in engine section. Should be modular and reusable for different runs and configurations. Should also include error handling and logging to facilitate debugging and tracking of runs.
