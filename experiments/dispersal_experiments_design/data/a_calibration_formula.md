@@ -11,7 +11,7 @@ $$a = 2*disp_rate$$
 
 The dispersal_rate can then be found using the diffusion formula :
 
-$$disp_rate = \frac{D_{obs}^2}{\delta x^2*t}$$
+$$disp_{rate} = \frac{D_{obs}^2}{\delta x^2*t}$$
 
 Where $D_obs$ is the mean dispersal rate (km/generation) ; $\delta x²$ is the grid cell area and t is the generation time
 
