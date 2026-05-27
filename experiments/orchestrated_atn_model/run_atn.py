@@ -16,15 +16,15 @@ from pathlib import Path  # cross-platform path handling
 from datetime import datetime  # timestamp for output folder name
 # Import custom modules from this project
 from atn_io import (
+    read_config,                                           # config reader
     read_env_matrix, read_adjacency_matrix, read_traits,  # I/O functions
     validate_inputs, check_parameter_completeness, print_summary,  # validation
     ValidationError  # custom exception
 )
 from atn_model import ATNModel  # the ODE model
-from config import CONFIG  # default parameters
 
 def main(env_file: str, adj_file: str, traits_file: str,
-         t_max: float = 100.0):
+         config_file: str = 'config.txt', t_max: float = 100.0):
     """
     Run the ATN model with full validation.
 
@@ -32,17 +32,19 @@ def main(env_file: str, adj_file: str, traits_file: str,
         env_file: path to env_mat.txt (environment: row, col, temperature, carrying capacity)
         adj_file: path to adj_mat.txt (adjacency matrix: food web links)
         traits_file: path to traits.txt (species traits: body mass, initial biomass)
+        config_file: path to config.txt (model parameters)
         t_max: simulation end time (days); one output point is saved per day
     """
-    
+
     # Print header banner
     print("=" * 70)
     print("SPATIALLY EXPLICIT ATN MODEL")
     print("=" * 70)
-    
+
     try:
         # ===== STEP 1: READ AND VALIDATE INPUTS =====
         print("\n[STEP 1] Reading and validating input files...")
+        CONFIG = read_config(config_file)
         # Read environment matrix (returns DataFrame and temperature array)
         env_df, temps = read_env_matrix(env_file)
         # Read adjacency matrix (binary food-web: rows=prey, cols=predators)
@@ -271,14 +273,16 @@ if __name__ == '__main__':
     # Allow command-line arguments for filenames
     if len(sys.argv) > 1:
         # Use provided filenames
-        env_f = sys.argv[1]
-        adj_f = sys.argv[2]
+        env_f    = sys.argv[1]
+        adj_f    = sys.argv[2]
         traits_f = sys.argv[3]
+        config_f = sys.argv[4] if len(sys.argv) > 4 else 'config.txt'
     else:
         # Use default filenames
-        env_f = 'env_mat.txt'
-        adj_f = 'adj_mat.txt'
+        env_f    = 'env_mat.txt'
+        adj_f    = 'adj_mat.txt'
         traits_f = 'traits.txt'
-    
+        config_f = 'config.txt'
+
     # Run the model
-    B_traj, t_eval, model = main(env_f, adj_f, traits_f, t_max=100)
+    B_traj, t_eval, model = main(env_f, adj_f, traits_f, config_file=config_f, t_max=100)

@@ -22,6 +22,45 @@ class ValidationWarning:
         # Return formatted warning string with symbol
         return f"⚠ WARNING: {self.msg}"
 
+def read_config(filepath: str) -> Dict:
+    """
+    Read model configuration from a plain-text file.
+
+    Format: one 'key = value' pair per non-blank line; lines starting with '#'
+    and inline '#' comments are ignored.  Values are parsed as bool (True/False)
+    or float (handles scientific notation such as 1e-6 and 8.617e-5).
+    """
+    config: Dict = {}
+    try:
+        with open(filepath) as f:
+            for lineno, raw in enumerate(f, 1):
+                line = raw.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '#' in line:
+                    line = line[:line.index('#')].strip()
+                if '=' not in line:
+                    continue
+                key, _, val_str = line.partition('=')
+                key = key.strip()
+                val_str = val_str.strip()
+                if val_str in ('True', 'true'):
+                    config[key] = True
+                elif val_str in ('False', 'false'):
+                    config[key] = False
+                else:
+                    try:
+                        config[key] = float(val_str)
+                    except ValueError:
+                        raise ValidationError(
+                            f"config {filepath} line {lineno}: "
+                            f"cannot parse value for '{key}': '{val_str}'"
+                        )
+    except FileNotFoundError:
+        raise ValidationError(f"Config file not found: {filepath}")
+    return config
+
+
 def read_env_matrix(filepath: str) -> Tuple[pd.DataFrame, np.ndarray]:
     """
     Read environmental matrix with validation.
@@ -453,7 +492,7 @@ def check_parameter_completeness(config: Dict) -> bool:
     Verify that required configuration parameters are present.
     
     Parameters:
-        config: configuration dictionary from config.py
+        config: configuration dictionary loaded by read_config()
     
     Returns:
         True if all required parameters present

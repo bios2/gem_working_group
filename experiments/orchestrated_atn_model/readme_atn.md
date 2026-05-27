@@ -15,7 +15,7 @@ herbs and trees (see `context/vegetation.md`).
 | `atn_model.py` | `ATNModel` class: all ODE dynamics | No (imported by other scripts) |
 | `vegetation_model.py` | `PlantVegetationModel` class: NPP-driven basal growth and herb/tree bookkeeping | No (imported by `atn_model.py`) |
 | `atn_io.py` | File reading and 20+ validation checks | No (imported by other scripts) |
-| `config.py` | Default allometric and numerical parameters | No (imported by other scripts) |
+| `config.txt` | Editable text file of all model parameters (read at runtime by `atn_io.read_config`) | No (read by `run_atn.py`) |
 
 ## Running with your own data
 
@@ -87,7 +87,7 @@ INPUT FILES:
         ┌────────────────┼────────────────┐
         │                │                │
    ┌────▼──────┐  ┌─────▼──────┐  ┌─────▼──────┐
-   │atn_io.py  │  │atn_model.py│  │config.py   │
+   │atn_io.py  │  │atn_model.py│  │config.txt  │
    │           │  │            │  │            │
    │Read & validate           Initialize model
    └────┬──────┘  │            │  │parameters  │
@@ -162,7 +162,7 @@ Allometric rates:
 
 PARAMETER FLOW:
 
-config.py (default parameters)
+config.txt (read by atn_io.read_config())
    ↓
 ATNModel.__init__() extracts rates:
    psi, f_struct, alpha_herbs, X0, b_X, a0, b_a_prey, b_a_pred, h0, etc.
@@ -291,11 +291,11 @@ Species trait table: one row per species.
 
 | Column | Applies to | Units | Default if absent |
 |---|---|---|---|
-| `f_struct` | basal species | dimensionless (0–1) | `f_struct_default` in `config.py` |
-| `metabolic_rate_base` | all species | day⁻¹ | `X0` in `config.py` |
-| `metabolic_rate_exponent` | all species | dimensionless | `b_X` in `config.py` |
-| `assimilation_plant` | consumer species | dimensionless (0–1) | `e_plant` in `config.py` |
-| `assimilation_animal` | consumer species | dimensionless (0–1) | `e_animal` in `config.py` |
+| `f_struct` | basal species | dimensionless (0–1) | `f_struct_default` in `config.txt` |
+| `metabolic_rate_base` | all species | day⁻¹ | `X0` in `config.txt` |
+| `metabolic_rate_exponent` | all species | dimensionless | `b_X` in `config.txt` |
+| `assimilation_plant` | consumer species | dimensionless (0–1) | `e_plant` in `config.txt` |
+| `assimilation_animal` | consumer species | dimensionless (0–1) | `e_animal` in `config.txt` |
 
 Any column may have `NaN` for individual rows; those rows fall back to the global config default.
 Per-species metabolic parameters are most useful when the community mixes ectotherms and endotherms,
@@ -328,7 +328,7 @@ Human-readable record of the run:
 - Run timestamp
 - Number of species, time steps, pixels, and grid dimensions
 - Full species trait table (`species_id`, `body_mass_g`, `is_basal`, `initial_biomass_g_per_m2`)
-- All model constants from `config.py` with descriptions
+- All model constants from `config.txt` with descriptions
 
 ### biomass.txt
 
@@ -367,42 +367,51 @@ print(final.groupby('species_id')['biomass'].mean())
 
 ## Configuration
 
-Edit `config.py` to modify parameters:
+Edit `config.txt` to modify parameters. Format: `key = value  # comment`. Lines starting with `#` are ignored. Booleans are `True` or `False`; scientific notation (`1e-6`) is supported.
+
+```
+# ===== ALLOMETRIC RATE CONSTANTS =====
+X0             = 0.5       # metabolic rate normalization (day^-1)
+b_X            = -0.25     # metabolic exponent
+a0             = 0.001     # attack rate normalization (day^-1)
+b_a_prey       = -0.5      # attack rate prey exponent
+b_a_pred       = 0.5       # attack rate predator exponent
+h0             = 0.01      # handling time normalization (days)
+b_h_prey       = 0.5       # handling time prey exponent
+b_h_pred       = -0.5      # handling time predator exponent
+
+# ===== FUNCTIONAL RESPONSE =====
+q_hill         = 2.0       # Hill exponent (Type II ~= 2)
+interference   = 0.0       # consumer interference coefficient
+
+# ===== ASSIMILATION EFFICIENCIES =====
+e_plant        = 0.45      # plant assimilation (overridden by assimilation_plant in traits.txt)
+e_animal       = 0.85      # animal assimilation (overridden by assimilation_animal in traits.txt)
+
+# ===== VEGETATION GROWTH =====
+psi                 = 9.813  # C-to-wet-matter conversion (g wet / g C)
+f_struct_default    = 0.3    # default fraction of NPP to structural tissue
+alpha_herbs_default = 1.0    # half-saturation constant for herb/tree competition (g/m2)
+
+# ===== TEMPERATURE DEPENDENCE =====
+use_temperature = True     # apply temperature scaling to rates (True or False)
+T0_K            = 293.15   # reference temperature (K, 20 C)
+k_B             = 8.617e-5 # Boltzmann constant (eV/K)
+E_a             = 0.65     # activation energy (eV)
+
+# ===== EXTINCTION =====
+ext_threshold        = 1e-6  # biomass below this is treated as extinct (g/m2)
+extinction_timescale = 0.1   # decay timescale for extinct species (days)
+```
+
+To use a non-default config path:
+
+```bash
+python run_atn.py env_mat.txt adj_mat.txt traits.txt my_config.txt
+```
 
 ```python
-CONFIG = {
-    # Vegetation growth (NPP-driven, Harfoot et al. 2014 Text S1)
-    'psi': 9.813,              # C-to-wet-matter conversion (g wet / g C)
-    'f_struct_default': 0.3,   # default fraction of NPP to structural tissue
-    'alpha_herbs_default': 1.0,# half-saturation constant for herb/tree competition (g/m²)
-
-    # Allometric parameters — global defaults, overridable per species in traits.txt
-    'X0': 0.5,            # metabolic rate normalization (overridden by metabolic_rate_base)
-    'b_X': -0.25,         # metabolic exponent (overridden by metabolic_rate_exponent)
-    'a0': 0.001,          # attack rate normalization
-    'b_a_prey': -0.5,     # attack rate prey exponent
-    'b_a_pred': 0.5,      # attack rate predator exponent
-    'h0': 0.01,           # handling time normalization
-    'b_h_prey': 0.5,      # handling time prey exponent
-    'b_h_pred': -0.5,     # handling time predator exponent
-
-    # Functional response
-    'q_hill': 2.0,        # Hill exponent (Type II ≈ 2)
-    'interference': 0.0,  # consumer interference coefficient
-    # Efficiency — global defaults, overridable per species in traits.txt
-    'e_plant': 0.45,      # plant assimilation (overridden by assimilation_plant)
-    'e_animal': 0.85,     # animal assimilation (overridden by assimilation_animal)
-
-    # Temperature dependence
-    'use_temperature': True,
-    'T0_K': 293.15,       # reference temp (20°C)
-    'k_B': 8.617e-5,      # Boltzmann constant (eV/K)
-    'E_a': 0.65,          # activation energy (eV)
-
-    # Extinction
-    'ext_threshold': 1e-6,       # biomass below this → extinct
-    'extinction_timescale': 0.1, # decay timescale for extinct species (days)
-}
+B_traj, t_eval, model = main('env_mat.txt', 'adj_mat.txt', 'traits.txt', config_file='my_config.txt')
 ```
 
 ## Model Details
