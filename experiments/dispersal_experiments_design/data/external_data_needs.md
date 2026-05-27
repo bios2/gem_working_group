@@ -1,8 +1,6 @@
 # External data needs for calibrating the maximum dispersal rate (*a*)
 
-This document lists external data needed to calibrate the maximum per-capita dispersal
-rate parameter *a* in `diffuse_density_dependent.r`, in order of priority. For each
-data need, potential literature and database sources are listed.
+This document lists external data needed to calibrate the maximum per-capita dispersal rate parameter *a* in `diffuse_density_dependent.r`, in order of priority. For each data need, potential literature and database sources are listed.
 
 > **Note:** Citations are drawn from knowledge available at the time of writing (May 2026).
 > Verify journal titles, volumes, and page numbers before citing in a manuscript.
