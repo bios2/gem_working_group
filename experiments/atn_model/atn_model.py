@@ -75,7 +75,48 @@ class ATNModel:
         # Converts carbon-based NPP to the wet biomass units used throughout the model
         self.psi = config['psi']
 
-        # Extract allometric rate constants from config
+        # Per-species metabolic normalization X0_i [day^-1] with global config fallback
+        # Allows ectotherm/endotherm distinction (e.g. endotherms have higher X0)
+        x0_default = config['X0']  # global fallback from config
+        if 'metabolic_rate_base' in traits_df.columns:
+            # Use per-species values; fill any NaN with global default
+            self.X0_spp = traits_df['metabolic_rate_base'].fillna(x0_default).values.astype(float)
+        else:
+            # Column absent: uniform global default for all species
+            self.X0_spp = np.full(self.n_species, x0_default)
+
+        # Per-species metabolic exponent b_X_i [dimensionless] with global config fallback
+        # Negative: larger species have lower mass-specific metabolic cost
+        bx_default = config['b_X']  # global fallback from config
+        if 'metabolic_rate_exponent' in traits_df.columns:
+            # Use per-species values; fill any NaN with global default
+            self.bX_spp = traits_df['metabolic_rate_exponent'].fillna(bx_default).values.astype(float)
+        else:
+            # Column absent: uniform global default for all species
+            self.bX_spp = np.full(self.n_species, bx_default)
+
+        # Per-species assimilation efficiency for plant prey [0-1] with global config fallback
+        # Consumer j's efficiency when eating a basal (plant) resource
+        e_plant_default = config['e_plant']  # global fallback from config
+        if 'assimilation_plant' in traits_df.columns:
+            # Use per-species values; fill any NaN with global default
+            self.e_plant_spp = traits_df['assimilation_plant'].fillna(e_plant_default).values.astype(float)
+        else:
+            # Column absent: uniform global default for all species
+            self.e_plant_spp = np.full(self.n_species, e_plant_default)
+
+        # Per-species assimilation efficiency for animal prey [0-1] with global config fallback
+        # Consumer j's efficiency when eating another consumer (animal) resource
+        e_animal_default = config['e_animal']  # global fallback from config
+        if 'assimilation_animal' in traits_df.columns:
+            # Use per-species values; fill any NaN with global default
+            self.e_animal_spp = traits_df['assimilation_animal'].fillna(e_animal_default).values.astype(float)
+        else:
+            # Column absent: uniform global default for all species
+            self.e_animal_spp = np.full(self.n_species, e_animal_default)
+
+        # Extract allometric rate constants from config (kept for reference; X0/b_X
+        # overridden per-species by X0_spp/bX_spp above)
         self.X0 = config['X0']  # metabolic loss rate normalization constant
         self.bX = config['b_X']  # metabolic loss mass exponent (typically -0.25)
         self.a0 = config['a0']  # attack rate normalization constant
@@ -166,12 +207,13 @@ class ATNModel:
         return p_allom
     
     def _metabolic_rate(self, M: np.ndarray, T_K: float) -> np.ndarray:
-        """Metabolic loss rate X_i = X0 * M^(-0.25) * temp_factor"""
-        # Compute metabolic rate: X_i = X0 * M^b_X
-        X = self.X0 * np.power(M, self.bX)
+        """Metabolic loss rate X_i = X0_i * M_i^(b_X_i) * temp_factor"""
+        # Compute per-species metabolic rate using per-species X0 and b_X
+        # X0_spp and bX_spp are either per-species from traits or the global config default
+        X = self.X0_spp * np.power(M, self.bX_spp)
         # Apply temperature dependence if enabled
         if self.cfg['use_temperature']:
-            temp_factor = np.exp(-self.E_a * (self.T0_K - T_K) / 
+            temp_factor = np.exp(-self.E_a * (self.T0_K - T_K) /
                                 (self.k_B * T_K * self.T0_K))
             X *= temp_factor
         return X
@@ -296,10 +338,11 @@ class ATNModel:
             # Compute functional response F_ij for this consumer on all resources
             F_ij = self._functional_response(B, j)
             
-            # Get assimilation efficiencies e_i for all resources
-            # Plants have lower efficiency than animal prey
-            e_i = np.array([self.cfg['e_plant'] if self.traits.iloc[i]['is_basal'] 
-                           else self.cfg['e_animal'] for i in range(self.n_species)])
+            # Get assimilation efficiencies for this consumer j eating each resource i
+            # e_plant_spp[j]: consumer j's efficiency for plant (basal) prey
+            # e_animal_spp[j]: consumer j's efficiency for animal (consumer) prey
+            e_i = np.array([self.e_plant_spp[j] if self.traits.iloc[i]['is_basal']
+                           else self.e_animal_spp[j] for i in range(self.n_species)])
             
             # Consumption gain: B_j * sum_i (e_i * F_ij)
             # This is the biomass gained from eating all available resources
