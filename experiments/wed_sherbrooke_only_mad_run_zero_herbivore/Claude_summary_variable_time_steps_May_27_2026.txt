@@ -1,0 +1,66 @@
+Wednesday, May 27, 2026
+
+Claude 
+
+
+Harfoot_et_al_2014.pdf 
+
+Read this paper and summarize what output it produces for autotroph ecology in a list with the output description in a list
+
+
+Note: the paper you attached is Harfoot et al. 2014 (the Madingley Model paper), not Forte et al. Here is what it produces for autotroph ecology.
+
+AUTOTROPH STATE VARIABLES (what the model tracks)
+
+Autotroph stock biomass, B_s(t)
+Total wet-matter biomass of each autotroph stock in a grid cell at each time step. This is the core autotroph output; everything else derives from it.
+
+Marine phytoplankton stock, B_p(t)
+One phytoplankton stock per marine grid cell, characterized by total wet-matter biomass.
+
+Terrestrial leaf stocks, B_l(t)
+Two stocks per terrestrial grid cell: one deciduous and one evergreen, each a total leaf biomass. (Terrestrial cells are seeded with both; marine with one phytoplankton stock.)
+
+PER-TIME-STEP FLUX TERMS (Table 5)
+
+Autotroph growth increment, delta B_Growth
+Biomass gained per time step. Marine: driven by satellite-derived monthly NPP. Terrestrial: from the Smith et al. carbon model, partitioned by NPP, fraction allocated to structural tissue, and evergreen/deciduous split.
+
+Autotroph mortality/loss, delta B_Mort
+Biomass lost per time step. Marine: loss is essentially all herbivory. Terrestrial: leaf-mortality losses plus herbivory consumption.
+
+Cumulative biomass consumed by herbivory, L_Herbivory
+The portion of autotroph loss attributable to grazing by herbivore cohorts (per stock).
+
+INTERMEDIATE / DRIVING QUANTITIES
+
+Net primary productivity, NPP
+The basal resource. Reported and used as a driver, and as the x-axis for productivity-gradient analyses (kg km-2 yr-1).
+
+Fraction of NPP allocated to structural tissue, f_struct
+Climate-dependent; structural tissue is inedible to herbivores in the model.
+
+Proportion of NPP produced by evergreen leaves, f_ever
+Splits terrestrial production between the evergreen and deciduous stocks.
+
+Leaf mortality rates, mu_ever and mu_decid
+Annual leaf-mortality rates for evergreen and deciduous stocks (climate-dependent).
+
+EMERGENT / REPORTED OUTPUTS (figures and tables)
+
+Autotroph biomass density over time (kg km-2)
+1,000-year and 100-year dynamics by grid cell (Figure 2, dark green lines), used to confirm autotroph persistence.
+
+Autotroph standing stock in trophic pyramids
+The base box of the biomass pyramid (Figure 4), with NPP shown as a percentage of autotroph standing stock (dashed arrows).
+
+Autotroph biomass along productivity gradients
+Standing biomass plotted against NPP across terrestrial and marine transects (Figure 6; Figure S6 E and F).
+
+Herbivore-to-autotroph (and heterotroph-to-autotroph) biomass ratios
+Per-site and global maps comparing modelled vs empirical ratios (Figure 5; Figure S6 B; Figure S7).
+
+Latitudinal gradients of autotroph biomass density
+Autotroph biomass by latitude band from the global run (Figure 7B and 7C, autotroph line).
+
+A note on the autotroph submodel: terrestrial autotroph growth uses the climate-driven terrestrial carbon model of Smith et al. 2012 (reference 36), and marine growth is forced by satellite NPP (Behrenfeld and Falkowski 1997, reference 35). Those are the sources behind the f_struct, f_ever, and NPP allocation terms above.
