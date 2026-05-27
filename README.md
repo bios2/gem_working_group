@@ -72,6 +72,14 @@ Adding a new process is the same recipe every time: write a typed science functi
 
 ## Geographic grid
 
+For all experiments and simulations, we will use a common spatial grid to ensure comparability of results. The grid will cover North America with the following specifications:
+
+CRS: `ESRI:102008 North America Albers Equal Area Conic`  
+PROJ: `+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs`  
+Cell size: `100000 m × 100000 m`  
+Grid origin: `x = -7000000 m`, `y = -2000000 m`  
+Extent: `x = -7000000..5000000`, `y = -2000000..5500000`  
+Cell ID: `NA100_R{row}_C{col}` from upper-left or lower-left origin, documented explicitly  
 
 ## Simulation engine
 
