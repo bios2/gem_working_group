@@ -11,6 +11,7 @@ import numpy as np  # numerical arrays and mathematics
 from scipy.integrate import odeint  # ODE solver (4th-order Runge-Kutta adaptive)
 import pandas as pd  # tabular data handling
 from typing import Tuple, Dict  # type hints for function signatures
+from vegetation_model import PlantVegetationModel  # NPP-driven plant growth model
 
 class ATNModel:
     """
@@ -46,34 +47,11 @@ class ATNModel:
         # Identify basal (plant) and consumer (animal) species indices
         self.basal_idx = np.where(traits_df['is_basal'] == 1)[0]  # array of basal species indices
         self.consumer_idx = np.where(traits_df['is_basal'] == 0)[0]  # array of consumer species indices
-        
-        # Split basal species into herbs and trees using vegetation_type trait column
-        # vegetation_type is required; validated in atn_io.py before ATNModel is constructed
-        # Herb: basal species with vegetation_type == 'herb'
-        herb_mask = (traits_df['is_basal'] == 1) & (traits_df['vegetation_type'] == 'herb')
-        # Tree: basal species with vegetation_type == 'tree'
-        tree_mask = (traits_df['is_basal'] == 1) & (traits_df['vegetation_type'] == 'tree')
-        self.herb_idx = np.where(herb_mask)[0]  # row indices of herb species
-        self.tree_idx = np.where(tree_mask)[0]  # row indices of tree species
 
-        # Per-species structural tissue fraction f_struct [dimensionless, 0-1]
-        # Fraction of NPP to wood/roots; (1 - f_struct) is the leaf allocation fraction
-        f_default = config.get('f_struct_default', 0.3)  # global fallback from config
-        if 'f_struct' in traits_df.columns:
-            # Use per-species values; fill any NaN entries with the global default
-            self.f_struct = traits_df['f_struct'].fillna(f_default).values.astype(float)
-        else:
-            # Column absent: apply global default to every species
-            self.f_struct = np.full(self.n_species, f_default)
-
-        # Single global alpha_herbs from config [g/m²]
-        # Half-saturation constant for the competitive NPP partition between herbs and trees:
-        #   C_herb = alpha / (alpha + B_trees),  C_tree_i = B[i] / (alpha + B_trees)
-        self.alpha_herbs = config['alpha_herbs_default']
-
-        # Wet matter conversion factor psi [g wet matter / g C]
-        # Converts carbon-based NPP to the wet biomass units used throughout the model
-        self.psi = config['psi']
+        # Plant vegetation model owns herb/tree bookkeeping and NPP-driven growth.
+        self.vegetation = PlantVegetationModel(traits_df, env_df, config)
+        self.herb_idx = self.vegetation.herb_idx
+        self.tree_idx = self.vegetation.tree_idx
 
         # Per-species metabolic normalization X0_i [day^-1] with global config fallback
         # Allows ectotherm/endotherm distinction (e.g. endotherms have higher X0)
@@ -218,40 +196,6 @@ class ATNModel:
             X *= temp_factor
         return X
     
-    def _vegetation_growth(self, B: np.ndarray, cell_idx: int) -> np.ndarray:
-        """
-        Compute NPP-driven leaf biomass growth rate G_i for each basal species.
-
-        Implements the vegetation.md equation:
-            G_i = NPP * psi * (1 - f_struct_i) * C_i
-
-        Competitive partition C_i (Michaelis-Menten form, from vegetation.md):
-            Herb i:  C_i = alpha / (alpha + B_trees)
-            Tree i:  C_i = B[i]  / (alpha + B_trees)
-
-        NPP is read directly from env_mat as a single value per cell.
-        Non-basal species receive G_i = 0.
-        """
-        G = np.zeros(self.n_species)  # growth rate vector, one value per species
-
-        # Read single NPP value for this cell from the environmental table
-        NPP = self.env.loc[cell_idx, 'NPP']
-
-        # Total current tree biomass, used in both herb and tree partition denominators
-        B_trees = float(np.sum(B[self.tree_idx])) if len(self.tree_idx) > 0 else 0.0
-
-        # Herb species: competitive share declines as tree biomass increases
-        for i in self.herb_idx:
-            C_i = self.alpha_herbs / (self.alpha_herbs + B_trees)  # Michaelis-Menten decay
-            G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
-
-        # Tree species: share proportional to each tree's individual biomass
-        for i in self.tree_idx:
-            C_i = B[i] / (self.alpha_herbs + B_trees)  # Michaelis-Menten increase
-            G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
-
-        return G
-    
     def _functional_response(self, B: np.ndarray, j_idx: int) -> np.ndarray:
         """
         Unscaled Holling type II functional response for consumer j.
@@ -315,8 +259,8 @@ class ATNModel:
         # Compute metabolic loss rates X_i for all species
         X = self._metabolic_rate(M, T_K)
 
-        # Compute NPP-driven vegetation growth rates for all basal species in this cell
-        G = self._vegetation_growth(B, cell_idx)
+        # Compute NPP-driven vegetation growth rates for all basal species in this cell.
+        G = self.vegetation.growth(B, cell_idx, t)
 
         # ===== EQUATIONS FOR BASAL SPECIES (PLANTS) =====
         for i in self.basal_idx:
