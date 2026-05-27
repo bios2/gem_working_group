@@ -6,7 +6,8 @@
 # high dispersal into the right half. At t=2, conditions improve to slightly
 # above metabolic demands, reducing dispersal. t=3 shows the resulting spread.
 
-source("experiments/dispersal_experiments_design/functions/dispersal_metabolism.r")
+source("experiments/dispersal_experiments_design/functions/dispersal_from_growth_metabolism.r")
+source("experiments/experiment_diversity_metabolism/calculate_metabolism.r")
 
 # --- Species parameters: Canada lynx ---
 mass_g_lynx <- 10000  # ~10 kg
@@ -32,7 +33,7 @@ biomass_t1[, 1:5]   <- 100  # g per cell
 # => delta_ext = biomass * 1.99 * metabolism_rate
 delta_ext_t1 <- biomass_t1 * 1.99 * metabolism_rate
 
-dispersal_flux_t2 <- dispersal_metabolism(
+dispersal_flux_t2 <- dispersal_from_growth_metabolism(
   biomass_matrix         = biomass_t1,
   delta_biomass_external = delta_ext_t1,
   alpha                  = alpha_lynx,
@@ -49,7 +50,7 @@ biomass_t2[biomass_t2 < 1e-10] <- 1e-10
 # => delta_ext = biomass * 2.1 * metabolism_rate
 delta_ext_t2 <- biomass_t2 * 2.1 * metabolism_rate
 
-dispersal_flux_t3 <- dispersal_metabolism(
+dispersal_flux_t3 <- dispersal_from_growth_metabolism(
   biomass_matrix         = biomass_t2,
   delta_biomass_external = delta_ext_t2,
   alpha                  = alpha_lynx,
@@ -63,7 +64,7 @@ biomass_t3[biomass_t3 < 1e-10] <- 1e-10
 
 # --- Plot ---
 png(
-  "experiments/dispersal_experiments_design/figures/test_06_dispersal_metabolism.png",
+  "experiments/dispersal_experiments_design/test_06_dispersal_metabolism.png",
   width = 1200, height = 480
 )
 
