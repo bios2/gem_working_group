@@ -322,28 +322,38 @@ def read_traits(filepath: str, expected_n_species: Optional[int] = None) -> pd.D
         raise ValidationError("All initial biomasses are zero; simulation will be trivial.")
     print(f"  ✓ Initial biomass range: {B0[B0>0].min():.2e}–{B0.max():.2e} g/m²")
     
-    # Check optional metabolic columns
+    # Report optional per-species metabolic columns if present
     if 'metabolic_rate_base' in traits_df.columns:
-        X0 = traits_df['metabolic_rate_base'].values
-        if np.any(X0 < 0):
+        # Count non-NaN entries so the user knows how many species use per-species values
+        n_present = traits_df['metabolic_rate_base'].notna().sum()
+        X0_vals = traits_df['metabolic_rate_base'].dropna().values
+        if np.any(X0_vals < 0):
             raise ValidationError(
-                f"Metabolic rate base must be non-negative. Found negatives."
+                f"metabolic_rate_base must be non-negative. Found negative values."
             )
-        print(f"  ✓ Metabolic rate base: {X0[X0>0].min():.2e}–{X0.max():.2e}")
-    
+        print(f"  ✓ metabolic_rate_base: {n_present}/{n_spp} species have per-species values "
+              f"(range: {X0_vals.min():.2e}–{X0_vals.max():.2e}; rest use config X0)")
+
     if 'metabolic_rate_exponent' in traits_df.columns:
-        bX = traits_df['metabolic_rate_exponent'].values
-        print(f"  ✓ Metabolic exponent range: {bX.min():.3f}–{bX.max():.3f} (expect ~-0.25)")
-    
-    # Check assimilation efficiencies if present
+        # Count non-NaN entries; exponent is unconstrained but should be ~-0.25
+        n_present = traits_df['metabolic_rate_exponent'].notna().sum()
+        bX_vals = traits_df['metabolic_rate_exponent'].dropna().values
+        print(f"  ✓ metabolic_rate_exponent: {n_present}/{n_spp} species have per-species values "
+              f"(range: {bX_vals.min():.3f}–{bX_vals.max():.3f}; rest use config b_X)")
+
+    # Check assimilation efficiencies if present; report coverage
     for col in ['assimilation_plant', 'assimilation_animal']:
         if col in traits_df.columns:
-            e = traits_df[col].values
-            if np.any((e < 0) | (e > 1)):
+            n_present = traits_df[col].notna().sum()
+            e_vals = traits_df[col].dropna().values
+            if np.any((e_vals < 0) | (e_vals > 1)):
                 raise ValidationError(
-                    f"{col} must be in [0, 1]. Found range: {e.min():.3f}–{e.max():.3f}"
+                    f"'{col}' must be in [0, 1]. Found range: {e_vals.min():.3f}–{e_vals.max():.3f}"
                 )
-    
+            cfg_key = 'e_plant' if col == 'assimilation_plant' else 'e_animal'
+            print(f"  ✓ {col}: {n_present}/{n_spp} species have per-species values "
+                  f"(range: {e_vals.min():.3f}–{e_vals.max():.3f}; rest use config {cfg_key})")
+
     # Check Hill exponent if present
     if 'hill_exponent' in traits_df.columns:
         q = traits_df['hill_exponent'].values
