@@ -57,6 +57,8 @@ Additional libraries (e.g. `xarray`, `geopandas`) are added only when a process 
 
 Dependencies and packaging metadata live in a single `pyproject.toml` at the repo root. No `setup.py`, no `requirements.txt` — `pyproject.toml` is the only source of truth, so there is nothing to keep in sync by hand.
 
+The package lives at [src/gem/](src/gem/) and imports as `import gem` (e.g. `from gem.vegetation import logistic_growth_delta`). The repo directory `gem-working-group/` is the *workspace*, not the package — keep the distinction in mind when writing imports.
+
 **Getting started.** From the repo root:
 
 ```bash

@@ -78,7 +78,7 @@ Coding defaults:
 - **Idiomatic numpy first.** Broadcasting, vectorised operations, reductions on named axes. No `for cell in cells:` loops.
 - **Type hints are required on science functions** (the spec mandates it), optional elsewhere.
 - **Explain a Python idiom the first time it appears** in the participant's code — `NDArray[np.float64]`, `*` unpacking, `assert`, keyword-only arguments. One sentence each.
-- **No premature abstraction.** If two functions look similar, leave them. Wait for a third before generalising.
+- **Docstring shape language must match what the function enforces.** If the assert checks equal shapes, the docstring says *"same shape"*, not *"must broadcast"* — broadcasting is the adapter's job, not the science function's. See [processes spec §3 rule 6](docs/processes_implementation_specification.md). When reviewing a docstring written by a participant, also watch for: redundancy between the prose intro and the shape list, the phrase "constant scalar" applied to inputs the assert will read `.shape` on, and ambiguous use of `(S,)` (it is *one location with S species*, not *one species across a row*).
 - **No silent fallbacks.** Validate inputs at the science function's entry (the `assert`) and let it raise. Do not paper over wrong shapes with `np.broadcast_to` inside the science function.
 
 When the participant brings ODE code (e.g. from the `patn` branch), do not silently convert it. Walk them through the **Option A vs Option B** choice in [docs/processes_implementation_specification.md §7](docs/processes_implementation_specification.md) and let them decide.

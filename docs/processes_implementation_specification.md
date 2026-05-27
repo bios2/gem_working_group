@@ -43,6 +43,18 @@ A dependency output is *only* worth promoting to a shared layer once it is consu
 
 ## 2. Shape convention: each process at its natural dimensionality, written to broadcast
 
+### 2.0 Axis convention
+
+Across `src/gem/`, the **trailing axis is species** and **leading axes are spatial**. The canonical shapes a science function should be testable against are:
+
+- `(S,)` — one location, S species (smallest unit, handy for unit tests).
+- `(Y, S)` — a row of Y locations, S species each.
+- `(X, Y, S)` — the full X-by-Y grid, S species each.
+
+Putting species last is what lets within-cell reductions use `axis=-1` and per-species parameters of shape `(S,)` broadcast cleanly against any leading spatial shape. New processes follow this convention; deviating requires a note in the process's docstring explaining why.
+
+### 2.1 Writing the science at its natural dimensionality
+
 Each process is written at the dimensionality that is natural to its science:
 
 - **Cell-local processes** (e.g. logistic growth) are written as elementwise math on whatever array shape they receive. The same code runs on a single cell, a row, or the whole `(X, Y, S)` grid.
@@ -94,6 +106,10 @@ Rules:
    ```
    This catches shape mismatches early with a clear message, instead of silently producing wrong broadcasts deeper in the math.
 
+   The assert enforces **equal shape**, not broadcast-compatible shape. The science function consumes already-broadcast inputs; reshaping per-species parameters (e.g. `(S,)` → `(X, Y, S)`) and per-cell environmental layers (e.g. `(X, Y)` → `(X, Y, S)`) up to the biomass shape is the **adapter's** responsibility, typically via `np.broadcast_to` (see §5.2). Doing the broadcast inside the science function muddies the contract and hides shape bugs in the adapter.
+
+6. **Docstring shape language mirrors the assert.** If the assert checks equality, the docstring says "must have the same shape", not "must broadcast". A docstring that promises broadcasting while the assert enforces equality will lead contributors to skip the `np.broadcast_to` step in the adapter and hit confusing assertion errors at call time.
+
 Static shape typing (e.g. PEP 646 variadic generics) is not required. Shapes are documented in the docstring and validated at runtime by the assert.
 
 ## 4. Module layout: flat package, science and adapters separated
@@ -101,9 +117,9 @@ Static shape typing (e.g. PEP 646 variadic generics) is not required. Shapes are
 The runtime package is flat — no subpackages, no nested directories:
 
 ```text
-gem_working_group/
+gem-working-group/
 ├── src/
-│   └── gem_working_group/
+│   └── gem/
 │       ├── __init__.py
 │       ├── EcosystemEngine.py        # the pipeline
 │       ├── EcosystemGridState.py     # shared state (the "cart")
@@ -148,7 +164,7 @@ The simplest case: a process applied independently to each cell, with no spatial
 ### 5.1 Science (`vegetation.py`)
 
 ```python
-# src/gem_working_group/vegetation.py
+# src/gem/vegetation.py
 import numpy as np
 from numpy.typing import NDArray
 
@@ -176,7 +192,7 @@ Two lines of math, fully typed, runs at any leading dimensionality.
 ### 5.2 Adapter (`processes.py`)
 
 ```python
-# src/gem_working_group/processes.py
+# src/gem/processes.py
 import numpy as np
 from . import vegetation
 from .EcosystemGridState import EcosystemGridState
@@ -204,7 +220,7 @@ The adapter is the only piece that knows about `grid`, `env`, and the species re
 ```python
 # tests/test_vegetation.py
 import numpy as np
-from gem_working_group.vegetation import logistic_growth_delta
+from gem.vegetation import logistic_growth_delta
 
 def test_logistic_growth_zero_at_carrying_capacity():
     B = np.array([100.0, 100.0, 100.0])
@@ -232,7 +248,7 @@ Metabolism returns a per-species mass-specific rate that is reused by ATN (as a 
 ### 6.1 Science (`metabolism.py`)
 
 ```python
-# src/gem_working_group/metabolism.py
+# src/gem/metabolism.py
 import numpy as np
 from numpy.typing import NDArray
 
@@ -319,7 +335,7 @@ The trade-offs are documented in [`../discretization.md`](../discretization.md).
 ## 8. Summary checklist for a new process contribution
 
 - [ ] Decide whether the process is biomass-modifying (§1.1) or a dependency process (§1.2).
-- [ ] Add a new science module `src/gem_working_group/<process>.py`.
+- [ ] Add a new science module `src/gem/<process>.py`.
 - [ ] Write the science function with the typed signature from §3 (biomass-modifying takes `dt`; dependency does not).
 - [ ] Follow the shape convention from §2 (broadcast-friendly numpy at the process's natural dimensionality).
 - [ ] Add the runtime shape `assert` at the top of the function.
