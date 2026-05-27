@@ -477,9 +477,6 @@ def check_parameter_completeness(config: Dict) -> bool:
         # Functional response
         'q_hill': 'Hill exponent',
         'interference': 'consumer interference',
-        'R_opt': 'optimal predator/prey mass ratio',
-        'gamma': 'L-matrix sharpness',
-        'link_threshold': 'link threshold',
         # Efficiency
         'e_plant': 'plant assimilation efficiency',
         'e_animal': 'animal assimilation efficiency',
@@ -517,9 +514,6 @@ def check_parameter_completeness(config: Dict) -> bool:
     
     if config['q_hill'] <= 0:
         warnings.append(f"q_hill={config['q_hill']} should be positive")
-    
-    if config['R_opt'] <= 0:
-        warnings.append(f"R_opt={config['R_opt']} should be positive")
     
     if not (0 < config['e_plant'] < 1):
         warnings.append(f"e_plant={config['e_plant']} should be in (0, 1)")
@@ -581,7 +575,6 @@ def print_summary(env_df: pd.DataFrame, adj_mat: np.ndarray,
     print(f"\nModel settings:")
     print(f"  Temp dependence: {config['use_temperature']}")
     print(f"  q_hill: {config['q_hill']}")
-    print(f"  R_opt: {config['R_opt']}")
     print(f"  e_plant: {config['e_plant']}, e_animal: {config['e_animal']}")
     
     print("="*70 + "\n")

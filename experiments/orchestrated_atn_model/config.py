@@ -39,17 +39,6 @@ CONFIG = {
     'interference': 0.0, # Intraspecific consumer interference coefficient
                          # 0 = no interference, >0 = cannibalism/competition among predators
     
-    'R_opt': 100.0,      # Optimal consumer/resource body mass ratio
-                         # Predators are most efficient at consuming prey M_prey * R_opt ≈ M_pred
-                         # E.g., R_opt=100 means predator is 100x larger than optimal prey
-    
-    'gamma': 2.0,        # L-matrix sharpness (body-size matching curve width)
-                         # Higher γ: more specific feeding (peaked bell curve)
-                         # Lower γ: more generalist feeding (flatter bell curve)
-    
-    'link_threshold': 0.01,  # Minimum link strength to keep in L-matrix
-                             # Links with L_ij < threshold are removed (set to 0)
-    
     # ===== ASSIMILATION EFFICIENCIES =====
     # Fraction of consumed biomass that gets incorporated into predator biomass
     

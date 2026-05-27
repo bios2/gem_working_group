@@ -12,8 +12,8 @@ herbs and trees (see `context/vegetation.md`).
 | Script | Role | Run directly |
 |---|---|---|
 | `run_atn.py` | Main entry point: reads inputs, validates, integrates ODEs, saves results | Yes |
-| `test_atn.py` | Quick sanity check: runs a 10-day simulation on example files to verify setup | Yes |
 | `atn_model.py` | `ATNModel` class: all ODE dynamics | No (imported by other scripts) |
+| `vegetation_model.py` | `PlantVegetationModel` class: NPP-driven basal growth and herb/tree bookkeeping | No (imported by `atn_model.py`) |
 | `atn_io.py` | File reading and 20+ validation checks | No (imported by other scripts) |
 | `config.py` | Default allometric and numerical parameters | No (imported by other scripts) |
 
@@ -62,16 +62,6 @@ atn_output/
 `biomass.txt` columns: `pixel_id`, `x`, `y`, `time_step`, `species_id`, `biomass`
 
 The console prints per-species final biomass and the fraction of cells where each species persists.
-
-### Validate your setup first
-
-Before a long run, use `test_atn.py` to confirm your files are readable and the model initialises correctly:
-
-```bash
-python test_atn.py
-```
-
-This runs a 10-day simulation and checks for NaN values and shape consistency.
 
 ## Model Overview
 
@@ -199,11 +189,7 @@ Biomass trajectory saved to atn_output/yyyymmddhhmmss/biomass.txt (long format)
 ```
 ATNModel.__init__(adj_mat, traits_df, env_df, config)
 │  Reads adj_mat, traits_df, env_df; extracts allometric constants from config
-│  Identifies herb_idx and tree_idx from vegetation_type trait
-│  Loads per-species f_struct (with global fallback from config)
-│
-├── _L_matrix()                    body-size feeding kernel L_ij
-│       └─ returns L * adj_mat     (food-web topology with size-matching)
+│  Instantiates PlantVegetationModel (owns herb_idx, tree_idx, f_struct, alpha_herbs)
 │
 └── run_all_cells(B_initial, t_eval)
         │  iterates over spatial cells
@@ -216,7 +202,7 @@ ATNModel.__init__(adj_mat, traits_df, env_df, config)
                         ├── _allometric_rate('attack')    → a_ij  (n_spp × n_spp)
                         ├── _allometric_rate('handling')  → h_ij  (n_spp × n_spp)
                         ├── _metabolic_rate()             → X     (n_spp,)
-                        ├── _vegetation_growth(B, cell)  → G     (n_spp,)
+                        ├── vegetation.growth(B, cell)   → G     (n_spp,)   [PlantVegetationModel]
                         │       reads NPP from env_df[cell_idx]
                         │       herb: C_i = α/(α + B_trees)
                         │       tree: C_i = B[i]/(α + B_trees)
@@ -403,10 +389,6 @@ CONFIG = {
     # Functional response
     'q_hill': 2.0,        # Hill exponent (Type II ≈ 2)
     'interference': 0.0,  # consumer interference coefficient
-    'R_opt': 100.0,       # optimal predator/prey mass ratio
-    'gamma': 2.0,         # L-matrix sharpness
-    'link_threshold': 0.01,
-
     # Efficiency — global defaults, overridable per species in traits.txt
     'e_plant': 0.45,      # plant assimilation (overridden by assimilation_plant)
     'e_animal': 0.85,     # animal assimilation (overridden by assimilation_animal)
@@ -460,7 +442,6 @@ where $a_{ij}$ = attack rate, $q$ = Hill exponent, $h_{ij}$ = handling time, $c_
 
 - **Shorter simulation:** Lower `t_max` for faster runs
 - **Temperature off:** Set `use_temperature: False` to skip temperature calculations
-- **High connectivity:** Increase `link_threshold` to skip weak interactions
 - **Parallel cells:** Future: run cells in parallel with `concurrent.futures`
 
 ## Validation Features
@@ -505,7 +486,6 @@ Run with bad inputs to see detailed error messages.
 | `a0`, `b_a_prey`, `b_a_pred` | 0.001, −0.5, 0.5 | Rall et al. (2012); Brose et al. (2006) |
 | `h0`, `b_h_prey`, `b_h_pred` | 0.01, 0.5, −0.5 | Rall et al. (2012) |
 | `e_plant`, `e_animal` | 0.45, 0.85 | Yodzis & Innes (1992) — per-species override via `assimilation_plant`, `assimilation_animal` |
-| `R_opt` | 100 | Brose et al. (2006) |
 | `q_hill` | 2.0 | Williams & Martinez (2004) |
 | `E_a` | 0.65 eV | Brown et al. (2004); Gillooly et al. (2001) |
 | `k_B` | 8.617 × 10⁻⁵ eV/K | Fundamental constant (NIST CODATA) |

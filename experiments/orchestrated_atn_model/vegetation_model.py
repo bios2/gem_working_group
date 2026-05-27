@@ -4,6 +4,7 @@ Plant vegetation model for the spatial ATN.
 This module owns the NPP-driven basal growth calculation and the plant
 functional-type bookkeeping used by the ATN model.
 """
+from pathlib import Path
 from typing import Dict
 
 import numpy as np
@@ -78,3 +79,41 @@ class PlantVegetationModel:
             G[i] = NPP * self.psi * (1.0 - self.f_struct[i]) * C_i
 
         return G
+
+    def save_output(self, B_traj: np.ndarray, t_eval: np.ndarray, output_dir) -> None:
+        """
+        Save instantaneous vegetation growth rates for all basal species to vegetation.txt.
+
+        Evaluates growth(B, cell) at every recorded time point and cell using the
+        saved biomass trajectory, then writes a long-format table.
+
+        Columns: pixel_id, x, y, time, species, delta_biomass
+          delta_biomass = G_i (g/m²/day) — the NPP-driven growth contribution
+        """
+        n_tp = len(t_eval)
+        n_cells = len(self.env)
+        n_basal = len(self.basal_idx)
+
+        G_arr = np.zeros((n_tp, n_cells, n_basal))
+        for t_idx in range(n_tp):
+            for cell_idx in range(n_cells):
+                G = self.growth(B_traj[t_idx, cell_idx, :], cell_idx)
+                G_arr[t_idx, cell_idx, :] = G[self.basal_idx]
+
+        cell_x = self.env['x'].values.astype(int)
+        cell_y = self.env['y'].values.astype(int)
+
+        t_rep    = np.repeat(t_eval, n_cells * n_basal)
+        cell_rep = np.tile(np.repeat(np.arange(n_cells), n_basal), n_tp)
+        x_rep    = np.tile(np.repeat(cell_x, n_basal), n_tp)
+        y_rep    = np.tile(np.repeat(cell_y, n_basal), n_tp)
+        sp_rep   = np.tile(self.basal_idx, n_tp * n_cells)
+        g_rep    = G_arr.ravel()
+
+        table = np.column_stack([cell_rep, x_rep, y_rep, t_rep, sp_rep, g_rep])
+        np.savetxt(
+            Path(output_dir) / 'vegetation.txt', table,
+            fmt=['%d', '%d', '%d', '%.4f', '%d', '%.6e'],
+            header='pixel_id x y time species delta_biomass',
+            comments=''
+        )
