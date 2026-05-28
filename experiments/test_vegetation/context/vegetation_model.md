@@ -1,0 +1,211 @@
+# Model Description: A Hierarchical Vegetation Model with Local and Regional Dynamics
+
+## Overview
+
+We model vegetation hierarchically, distinguishing local patch dynamics from regional (cell-level) occupancy dynamics. A grid cell is composed of a very large number of small patches, so large that we track only the proportion of patches belonging to each vegetation type and age class. Each patch is small enough to contain at most one tree species, but it always contains herbs.
+
+There are three functional groups: *evergreen trees*, *deciduous trees*, and *herbs*. After a disturbance (fire), all biomass in a patch is reset to zero and herbs are the first to establish. Forest develops through the subsequent growth of tree biomass and progressive shading of herbs by tree canopy.
+
+The fire return interval differs between tree types and drives regional turnover. Differences in community composition across locations emerge from climate-dependent parameters and variation in herbivore pressure.
+
+## State Variables and Notation
+
+The index $i$ refers to any functional group (herbs, evergreen, or deciduous), while $j$ refers specifically to tree species (evergreen or deciduous only), excluding herbs.
+
+- $B_{i,x,t}$: total leaf biomass (g wet matter) of functional group $i$ at location $x$ and time $t$, integrated over the cell area.
+- $p_{j,a,x,t}$: fraction of patches occupied by tree type $j$ at patch age $a$ (time since last fire) at location $x$ and time $t$. The constraint $\sum_{a}\sum_{j} p_{j,a,x,t} = 1$ ensures all patches are accounted for.
+- $b_{j,a,x,t}$: leaf biomass density (g wet matter m$^{-2}$) of tree species $j$ in patches of age $a$.
+- $b_{\mathrm{herb}|j,a,x,t}$: leaf biomass density of herbs in patches of tree type $j$ at age $a$. Herbs and trees coexist in all patches, but tree species do not coexist within a single patch.
+- Total biomass of functional group $i$ is:
+
+$$B_{i,x,t} = A_{\mathrm{cell}} \sum_{a} p_{i,a,x,t}\, b_{i,a,x,t}$$
+
+where $A_{\mathrm{cell}}$ is the cell area in m$^2$. For herbs, the sum runs over both patch types weighted by their respective occupancy.
+
+- $r_{j,x,t}$: relative biomass of tree species $j$ among trees only:
+
+$$r_{j,x,t} = \frac{B_{j,x,t}}{\sum_{j'} B_{j',x,t}}$$
+
+## Local Biomass Dynamics
+
+The leaf biomass of each functional group in a patch of a given age and type follows a discrete-time difference equation adapted from Harfoot et al. (2014):
+
+$$b_{i,a,x,t+\Delta t} = b_{i,a,x,t} + \Delta^{\mathrm{Growth}}_{i,a,x,t} - \Delta^{\mathrm{Mort}}_{i,a,x,t}$$
+
+### Mortality
+
+$$\Delta^{\mathrm{Mort}}_{i,a,x,t} = \delta\,\mu_{i,x,t}\,b_{i,a,x,t} + L_{i,a,x,t}$$
+
+where $\mu_{i,x,t}$ is the mean annual leaf mortality rate (yr$^{-1}$) of functional group $i$, $\delta$ is a scalar converting the annual rate to the model time step, and $L_{i,a,x,t}$ is the leaf biomass consumed through herbivory during one time step. For constant herbivore populations:
+
+$$L_{i,a,x,t} = \beta_i\, b_{i,a,x,t}$$
+
+where $\beta_i$ (yr$^{-1}$) is the functional-group-specific herbivory rate.
+
+### Growth and Competition
+
+$$\Delta^{\mathrm{Growth}}_{i,a,x,t} = \mathit{NPP}_{x,t}\;\psi\;\delta\;(1 - f_{\mathrm{struct},i})\;f_{\mathrm{LeafMort},i}\;C_{i,a,x,t}$$
+
+where $\mathit{NPP}_{x,t}$ is monthly terrestrial NPP (kg C m$^{-2}$ month$^{-1}$), $\psi$ is the conversion factor from carbon to leaf wet matter, $f_{\mathrm{struct},i}$ is the fractional allocation of primary production to structural tissue, and $f_{\mathrm{LeafMort},i}$ is the fraction of non-structural production allocated to leaves.
+
+#### Asymmetric competition via light attenuation
+
+NPP is partitioned between herbs and the local tree species through an asymmetric competition term inspired by Beer's law. Trees shade herbs but herbs have no effect on trees. In an evergreen patch:
+
+$$C_{\mathrm{herb},a,x,t} = e^{-\alpha\, b_{\mathrm{ever},a,x,t}}$$
+
+and in a deciduous patch:
+
+$$C_{\mathrm{herb},a,x,t} = e^{-\alpha\, b_{\mathrm{decid},a,x,t}}$$
+
+where $\alpha$ (m$^2$ kg$_C^{-1}$) is the light-extinction coefficient. By the asymmetry assumption:
+
+$$C_{\mathrm{ever},a,x,t} = C_{\mathrm{decid},a,x,t} = 1 - C_{\mathrm{herb},a,x,t}$$
+
+so that $C_{\mathrm{herb}} + C_{\mathrm{tree}} = 1$ within each patch.
+
+## Regional Occupancy Dynamics
+
+### Aging and Disturbance
+
+Each time step, a fraction $e_{j,x,t}$ of patches of tree type $j$ is disturbed (burned) and returned to age 0. The remaining patches age by one step:
+
+$$p_{j,a,t+\Delta t} = p_{j,a-1,t}\,(1 - e_{j,x,t}), \quad a \geq 1$$
+
+The oldest age class, $a_{\max}$, acts as a lumped class accumulating all patches older than $a_{\max}$:
+
+$$p_{j,a_{\max},t+\Delta t} = \bigl(p_{j,a_{\max}-1,t} + p_{j,a_{\max},t}\bigr)\,(1 - e_{j,x,t})$$
+
+### Colonization of Burned Patches
+
+The total flux of patches disturbed at time $t$ is:
+
+$$D_{x,t} = \sum_{j}\sum_{a} p_{j,a,x,t}\,e_{j,x,t}$$
+
+Newly burned patches are colonized by tree species in proportion to their regional relative biomass:
+
+$$p_{j,0,x,t} = D_{x,t}\, r_{j,x,t}$$
+
+Fire resets all leaf biomass to zero in newly created patches: $b_{j,0} = b_{\mathrm{herb}|j,0} = 0$.
+
+## Climate-Dependent Parameters from Harfoot et al. (2014)
+
+### Net Primary Production
+
+Annual NPP follows the Miami model (Lieth 1975):
+
+$$\mathit{NPP}^{T}_{y} = \min\!\left(\mathit{NPP}_{T},\; \mathit{NPP}_{P}\right)$$
+
+$$\mathit{NPP}_{T} = \frac{\mathit{NPP}_{\max}}{1 + e^{\,c_p - m_p\,\bar{T}}}$$
+
+$$\mathit{NPP}_{P} = \mathit{NPP}_{\max}\!\left(1 - e^{-\rho\, P}\right)$$
+
+where $\mathit{NPP}_{\max}$ is the maximum possible NPP (kg C m$^{-2}$ yr$^{-1}$), $c_p$ and $m_p$ are coefficients relating NPP to mean annual temperature $\bar{T}$ (°C), and $\rho$ relates NPP to total annual precipitation $P$ (mm yr$^{-1}$).
+
+Monthly NPP is obtained by scaling annual NPP by the monthly seasonality factor $\omega_{\mathrm{cell},m}$ (derived from Terra/MODIS remote-sensing data):
+
+$$\mathit{NPP}^{T}_{m} = \mathit{NPP}^{T}_{y}\cdot\omega_{\mathrm{cell},m}$$
+
+### Fractional Allocation to Structural Tissue
+
+$$f_{\mathrm{struct}} = \min\!\left(\frac{f^{\min}_{\mathrm{struct}}\,e^{\,\theta_{f_{\mathrm{struct}}}\,\mathit{NPP}^{T}_{y}}}{1 + f^{\min}_{\mathrm{struct}}\!\left(e^{\,\theta_{f_{\mathrm{struct}}}\,\mathit{NPP}^{T}_{y}} - 1\right)},\;0.99\right) \cdot f^{\max}_{\mathrm{struct}}$$
+
+where $f^{\min}_{\mathrm{struct}} = 0.01$.
+
+### Leaf Mortality Rates
+
+The mean leaf mortality rate is a weighted average of evergreen and deciduous rates:
+
+$$\mu_{\mathrm{Leaf}} = \dot{\iota}\;e^{\,f_{\mathrm{ever}}\ln\mu_{\mathrm{ever}} + (1-f_{\mathrm{ever}})\ln\mu_{\mathrm{decid}}}$$
+
+The evergreen and deciduous leaf mortality rates depend on mean annual temperature $\bar{T}^C$ (°C):
+
+$$\mu_{\mathrm{ever}} = e^{\,(m_{e}\,\bar{T}^C - c_{e})}$$
+
+$$\mu_{\mathrm{decid}} = e^{\,-(m_{d}\,\bar{T}^C + c_{d})}$$
+
+Both rates are bounded: $\mu_{\mathrm{ever}} \in [\mu^{\min}_{e},\,\mu^{\max}_{e}]$ and $\mu_{\mathrm{decid}} \in [\mu^{\min}_{d},\,\mu^{\max}_{d}]$.
+
+### Fine Root Mortality Rate
+
+$$\mu_{\mathrm{FineRoot}} = e^{\,m_r\,T^C_{(t)} + c_r}$$
+
+where $T^C_{(t)}$ is the monthly mean temperature (°C). The rate is bounded: $\mu_{\mathrm{FineRoot}} \in [\mu^{\min}_{r},\,\mu^{\max}_{r}]$.
+
+### Fractional Leaf Allocation
+
+The fraction of non-structural NPP allocated to leaves (versus fine roots) is:
+
+$$f_{\mathrm{LeafMort}} = \frac{\mu_{\mathrm{Leaf}}}{\mu_{\mathrm{Leaf}} + \mu_{\mathrm{FineRoot}}}$$
+
+### Proportion of Evergreen Productivity
+
+The fraction of NPP produced by evergreen leaves depends on the fraction of the year experiencing frost ($F_{\mathrm{frost}}$, the normalized number of frost days):
+
+$$f_{\mathrm{ever}} = a_{f_{\mathrm{ever}}}\,F_{\mathrm{frost}}^{2} + b_{f_{\mathrm{ever}}}\,F_{\mathrm{frost}} + c_{f_{\mathrm{ever}}}$$
+
+bounded to $[0, 1]$.
+
+## Parameter Values
+
+| Symbol | Description | Value | Units |
+|--------|-------------|-------|-------|
+| **Miami NPP model** | | | |
+| $\mathit{NPP}_{\max}$ | Maximum possible NPP | 0.9616 | kg C m$^{-2}$ yr$^{-1}$ |
+| $c_p$ | Temperature NPP intercept | 0.2375 | -- |
+| $m_p$ | Temperature NPP slope | 0.1006 | °C$^{-1}$ |
+| $\rho$ | Precipitation NPP coefficient | 0.001184 | mm$^{-1}$ |
+| **Structural allocation** | | | |
+| $\theta_{f_{\mathrm{struct}}}$ | Scalar for $f_{\mathrm{struct}}$ | 7.155 | -- |
+| $f^{\max}_{\mathrm{struct}}$ | Maximum structural allocation | 0.3627 | -- |
+| **Evergreen leaf mortality** | | | |
+| $m_e$ | Slope vs. temperature | 0.04027 | °C$^{-1}$ |
+| $c_e$ | Intercept | 1.01307 | -- |
+| $\mu^{\min}_{e}$ | Minimum rate | 0.01 | yr$^{-1}$ |
+| $\mu^{\max}_{e}$ | Maximum rate | 24.0 | yr$^{-1}$ |
+| **Deciduous leaf mortality** | | | |
+| $m_d$ | Slope vs. temperature | 0.02058 | °C$^{-1}$ |
+| $c_d$ | Intercept | $-1.1952$ | -- |
+| $\mu^{\min}_{d}$ | Minimum rate | 0.01 | yr$^{-1}$ |
+| $\mu^{\max}_{d}$ | Maximum rate | 24.0 | yr$^{-1}$ |
+| **Fine root mortality** | | | |
+| $m_r$ | Slope vs. temperature | 0.04309 | °C$^{-1}$ |
+| $c_r$ | Intercept | $-1.4784$ | -- |
+| $\mu^{\min}_{r}$ | Minimum rate | 0.01 | yr$^{-1}$ |
+| $\mu^{\max}_{r}$ | Maximum rate | 12.0 | yr$^{-1}$ |
+| **Evergreen fraction** | | | |
+| $a_{f_{\mathrm{ever}}}$ | Quadratic coefficient | 1.2708 | -- |
+| $b_{f_{\mathrm{ever}}}$ | Linear coefficient | $-1.8286$ | -- |
+| $c_{f_{\mathrm{ever}}}$ | Intercept | 0.8449 | -- |
+| **Conversion factors** | | | |
+| $\psi$ | C to leaf wet matter | $0.476^{-1}\times 0.213^{-1}$ | g wet g$^{-1}$ C |
+| **New model parameters (this study)** | | | |
+| $\alpha$ | Beer-Lambert shading coefficient | 5.0 | m$^2$ kg$_C^{-1}$ |
+| $\beta_i$ | Herbivory rate by functional group | 0.01--0.05 | yr$^{-1}$ |
+| $e_j$ | Annual fire disturbance rate by tree type | 1/100--1/150 | yr$^{-1}$ |
+| $a_{\max}$ | Maximum tracked patch age | 600 | months |
+
+## Application: Sherbrooke, Canada
+
+Derived parameter values computed for Sherbrooke, Québec, Canada (45.4°N, 71.9°W) using the Madingley spatial raster inputs.
+
+| Quantity | Value | Units |
+|----------|-------|-------|
+| Mean annual temperature | 3.94 | °C |
+| Total annual precipitation | 1256 | mm yr$^{-1}$ |
+| Total annual AET | 488 | mm yr$^{-1}$ |
+| Fraction of year with frost ($F_{\mathrm{frost}}$) | 0.517 | -- |
+| Fraction of year with fire ($F_{\mathrm{fire}}$) | 0.000 | -- |
+| Annual NPP (Miami model) | 0.519 | kg C m$^{-2}$ yr$^{-1}$ |
+| $f_{\mathrm{ever}}$ | 0.239 | -- |
+| $f_{\mathrm{struct}}$ | 0.106 | -- |
+| $\mu_{\mathrm{ever}}$ | 0.426 | yr$^{-1}$ |
+| $\mu_{\mathrm{decid}}$ | 3.047 | yr$^{-1}$ |
+| $\mu_{\mathrm{FineRoot}}$ | 0.270 | yr$^{-1}$ |
+| $f_{\mathrm{LeafMort,ever}}$ | 0.612 | -- |
+| $f_{\mathrm{LeafMort,decid}}$ | 0.919 | -- |
+
+## References
+
+- Harfoot, M.B.J., Newbold, T., Tittensor, D.P., Emmott, S., Hutton, J., Lyutsarev, V., Smith, M.J., Scharlemann, J.P.W., & Purves, D.W. (2014). Emergent global patterns of ecosystem structure and function from a mechanistic general ecosystem model. *PLOS Biology*, 12(4), e1001841.
+- Lieth, H. (1975). Modelling the primary productivity of the world. In: Lieth, H. & Whittaker, R.H. (eds.), *Primary Productivity of the Biosphere*. Springer-Verlag, New York, pp. 237--263.
