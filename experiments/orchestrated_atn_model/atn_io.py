@@ -443,16 +443,11 @@ def validate_inputs(env_df: pd.DataFrame, adj_mat: np.ndarray,
     # Check basal species are leaf nodes in food web
     n_basal = (traits_df['is_basal'] == 1).sum()
     basal_idx = np.where(traits_df['is_basal'] == 1)[0]
-<<<<<<< HEAD
 
     # Basal species should only be consumed, not consume.
     # Check columns (consumer axis): basal species must not appear as consumers.
     basal_as_consumers = np.sum(adj_mat[:, basal_idx])
-=======
-    
-    # Basal species should only be consumed, not consume
-    basal_as_consumers = np.sum(adj_mat[basal_idx, :]) 
->>>>>>> refs/remotes/origin/orchestrated_vegatn
+
     if basal_as_consumers > 0:
         raise ValidationError(
             f"Basal species should not consume. Found {basal_as_consumers} links from basal spp.\n"
