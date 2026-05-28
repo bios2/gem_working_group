@@ -3,6 +3,7 @@ import numpy as np
 
 from .ecosystem_grid_state import EcosystemGridState
 from ..vegetation import logistic_growth_delta
+from ..dispersal import compute_disperse_delta
 
 # ============================================================================
 # PROCESS ARCHITECTURE: Pure Science + Thin Adapter
@@ -94,15 +95,37 @@ def apply_atn_step(grid: EcosystemGridState, env: EnvironmentState):
     pass
 
 def apply_dispersal(grid: EcosystemGridState, env: EnvironmentState):
-    """Dispersal moves biomass between adjacent grid cells.
-    
-    Reads current biomass and net growth rates, writes dispersal delta to biomass_delta.
+    """Adapter: density-dependent dispersal (Ryser et al. 2021).
+
+    Reads biomass + per-species rate layers from grid (ATN populates the rate
+    layers), reads boundary_number from env, calls compute_disperse_delta,
+    writes the dispersal delta into the registered dispersal_delta layer.
     """
-    # Dispersal reads grid.biomass (current state at start of step)
-    # and grid.net_growth_rate (computed by ATN),
-    # calculates diffusion and movement fluxes,
-    # and accumulates the dispersal delta into biomass_delta.
-    pass
+    biomass    = grid.get_layer_view("biomass", "all")
+    net_growth = grid.get_layer_view("net_growth_rate", "all")
+    metabolism = grid.get_layer_view("metabolism_rate", "all")
+
+    # Species-level parameter (shape (S,)) -> broadcast to (X, Y, S) so the
+    # science function's shape assert passes.
+    max_disp_rate = grid.registry.get_group_parameter("all", "max_dispersal_rate")
+    max_disp_rate = np.broadcast_to(max_disp_rate, biomass.shape)
+
+    # boundary_number is a 2D geometric field on env; add a trailing axis so it
+    # broadcasts over species inside compute_disperse_delta.
+    boundary_number = env.get_layer("boundary_number")[..., np.newaxis].astype(np.int64)
+
+    delta = compute_disperse_delta(
+        biomass=biomass,
+        net_growth=net_growth,
+        metabolism=metabolism,
+        max_disp_rate=max_disp_rate,
+        boundary_number=boundary_number,
+        b=10.0,
+        dt=1.0,
+    )
+
+    with grid.edit_group_data("dispersal_delta", "all") as d:
+        d += delta
 
 
 # ============================================================================

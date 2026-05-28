@@ -8,12 +8,12 @@ class EcosystemGridState:
     Holds dynamic 3D biological states [X, Y, Species_ID].
     Modules can dynamically add their own tracking layers.
     """
-    def __init__(self, shape: tuple, registry: SpeciesRegistry):
+    def __init__(self, shape: tuple, registry: SpeciesRegistry, layers: dict = None):
         self.shape = shape
         self.registry = registry
         
         # Dictionary to hold all 3D [X, Y, Species] matrices
-        self.layers = {}
+        self.layers = layers if layers is not None else {}
         
         # Registry: maps source_layer_name -> list of delta_layer_names.
         # Used by the engine to integrate all deltas into their source layers at step end.
@@ -66,10 +66,12 @@ class EcosystemGridState:
         Shape returned: (X, Y, N_species_in_group).
         """
         if layer_name not in self.layers:
+            print(f"Available layers: {list(self.layers.keys())}")
             raise KeyError(f"Layer '{layer_name}' has not been registered.")
             
         indices = self.registry.get_group_indices(group_name)
         if len(indices) == 0:
+            print(f"Available groups: {list(self.registry.groups.keys())}")
             raise ValueError(f"No species found for group '{group_name}'")
             
         return self.layers[layer_name][:, :, indices]
