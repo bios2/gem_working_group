@@ -120,9 +120,26 @@ def _lookup_body_temp(taxa: str) -> float:
 
 
 # --- metabolism_parameters ----------------------------------------------------
+def _endotherm_mammal_to_taxa(
+    is_endotherm: bool | None, is_mammal: bool | None
+) -> str | None:
+    """Convert (is_endotherm, is_mammal) bools to taxa label, or None if unknown."""
+    if is_endotherm is None:
+        return None
+    if is_endotherm is False:
+        return "ectotherm"
+    # is_endotherm is True
+    if is_mammal is None:
+        return None
+    if is_mammal:
+        return "endotherm-mammal"
+    return "endotherm-bird"
+
+
 def metabolism_parameters(
     species: str | Iterable[str],
-    taxa: str | Iterable[str | None] | None = None,
+    endotherm: bool | Iterable[bool | None] | None = None,
+    mammal: bool | Iterable[bool | None] | None = None,
     custom_params: dict[str, dict[str, float]] | None = None,
     interactive: bool = True,
 ) -> pd.DataFrame:
@@ -138,23 +155,28 @@ def metabolism_parameters(
     species
         A species name or an iterable of species names. Names are free-form
         strings; they only need to be unique.
-    taxa
-        Either ``None`` (every species' classification is unknown), a single
-        label applied to all species, or an iterable of labels — same length as
-        ``species`` — where each element is one of ``VALID_TAXA`` (``"ectotherm"``,
-        ``"endotherm-bird"``, ``"endotherm-mammal"``) or ``None`` to mark that
-        species as unclassified.
+    endotherm
+        Classification of thermoregulation: ``True`` for endotherm (regulated
+        body temperature), ``False`` for ectotherm (ambient temperature).
+        May be a single bool applied to all species, an iterable of bools
+        (same length as ``species``), or ``None`` (classification unknown;
+        interactive prompt will appear if ``interactive=True``).
+    mammal
+        Classification of endotherm type: ``True`` for mammal, ``False`` for
+        bird. Ignored if ``endotherm=False``. May be a single bool, an
+        iterable of bools (same length as ``species``), or ``None`` (unknown).
+        Relevant only when ``endotherm=True``.
     custom_params
         Optional override mapping ``species_name -> {"c_int": float, "b": float,
         "taxa": str}``. Use this for non-vertebrate species, or any species with
         published coefficients of its own. Custom entries skip the interactive
         prompt entirely. ``"taxa"`` may be any descriptive label — it is stored
-        but never validated against ``VALID_TAXA``.
+        but never validated.
     interactive
         When ``True`` (the default), the function asks the user via ``input()``
         what to do for any species that is still unclassified after applying
-        ``taxa`` and ``custom_params``. The user can either pick one of the
-        default taxa or type in their own ``c_int`` and ``b``.
+        ``endotherm``, ``mammal``, and ``custom_params``. The user can either
+        pick one of the default taxa or type in their own ``c_int`` and ``b``.
 
         When ``False``, an unclassified species raises ``ValueError`` instead.
         Use ``interactive=False`` in notebooks, tests, and batch scripts where
@@ -170,32 +192,46 @@ def metabolism_parameters(
     --------
     >>> df = metabolism_parameters(
     ...     species=["robin", "vole"],
-    ...     taxa=["endotherm-bird", "endotherm-mammal"],
+    ...     endotherm=[True, True],
+    ...     mammal=[False, True],
     ... )
     >>> df[["species", "c_int", "b"]].to_dict("records")
     [{'species': 'robin', 'c_int': 19.53, 'b': 0.73}, {'species': 'vole', 'c_int': 19.53, 'b': 0.73}]
     """
-    # Normalise species to a list. ``[species]`` (rather than ``list(species)``)
-    # keeps a single string from being split into characters.
+    # Normalise species to a list.
     species_list = [species] if isinstance(species, str) else list(species)
+    n = len(species_list)
 
-    # Normalise taxa to a list of the same length, with None for unknowns.
-    if taxa is None:
-        taxa_list: list[str | None] = [None] * len(species_list)
-    elif isinstance(taxa, str):
-        taxa_list = [taxa] * len(species_list)
+    # Normalise endotherm to a list.
+    if endotherm is None:
+        endotherm_list: list[bool | None] = [None] * n
+    elif isinstance(endotherm, bool):
+        endotherm_list = [endotherm] * n
     else:
-        taxa_list = list(taxa)
-        if len(taxa_list) != len(species_list):
+        endotherm_list = list(endotherm)
+        if len(endotherm_list) != n:
             raise ValueError(
-                f"taxa has length {len(taxa_list)} but species has length "
-                f"{len(species_list)}; they must match."
+                f"endotherm has length {len(endotherm_list)} but species has length "
+                f"{n}; they must match."
+            )
+
+    # Normalise mammal to a list.
+    if mammal is None:
+        mammal_list: list[bool | None] = [None] * n
+    elif isinstance(mammal, bool):
+        mammal_list = [mammal] * n
+    else:
+        mammal_list = list(mammal)
+        if len(mammal_list) != n:
+            raise ValueError(
+                f"mammal has length {len(mammal_list)} but species has length "
+                f"{n}; they must match."
             )
 
     custom_params = custom_params or {}
 
     rows: list[dict[str, object]] = []
-    for sp, tx in zip(species_list, taxa_list):
+    for sp, is_endotherm, is_mammal in zip(species_list, endotherm_list, mammal_list):
         if sp in custom_params:
             entry = custom_params[sp]
             rows.append({
@@ -205,6 +241,9 @@ def metabolism_parameters(
                 "b":       float(entry["b"]),
             })
             continue
+
+        # Convert (is_endotherm, is_mammal) to taxa label, or None if unknown.
+        tx = _endotherm_mammal_to_taxa(is_endotherm, is_mammal)
 
         if tx is None:
             if interactive:
@@ -217,11 +256,6 @@ def metabolism_parameters(
                 )
             continue
 
-        if tx not in DEFAULT_TAXA_PARAMS:
-            raise ValueError(
-                f"Unknown taxa label {tx!r} for species {sp!r}. Expected one "
-                f"of {VALID_TAXA}, or pass a custom_params entry."
-            )
         params = DEFAULT_TAXA_PARAMS[tx]
         rows.append({
             "species": sp,
