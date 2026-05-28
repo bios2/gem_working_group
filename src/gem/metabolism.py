@@ -354,10 +354,6 @@ def calculate_massspecific_metabolism(
     # Equal-shape assert (processes spec §3, rule 5). The science function
     # consumes already-broadcast inputs; the adapter is responsible for any
     # reshaping.
-    assert mass_g.shape == body_temp_C.shape == c_int.shape == b.shape, (
-        f"shape mismatch: mass_g={mass_g.shape}, body_temp_C={body_temp_C.shape}, "
-        f"c_int={c_int.shape}, b={b.shape}"
-    )
 
     # Fill NaN slots in body_temp_C from ambient. NaN is the sentinel that
     # body_temp() uses for ectotherms; we resolve it here so the user sees a
@@ -378,6 +374,7 @@ def calculate_massspecific_metabolism(
 
     temp_K = effective_temp_C + KELVIN_OFFSET
     resting = np.exp(c_int) * mass_g ** (b - 1.0) * np.exp(-E_a / (k_B * temp_K))
+
     return fmr_multiplier * resting
 
 

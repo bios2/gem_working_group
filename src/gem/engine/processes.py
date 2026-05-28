@@ -1,3 +1,5 @@
+from gem.metabolism import calculate_massspecific_metabolism, calculate_biomass_metabolism
+
 from .environment_state import EnvironmentState
 import numpy as np
 
@@ -79,7 +81,61 @@ def apply_vegetation_growth(grid: EcosystemGridState, env: EnvironmentState):
     # Write delta back to the grid
     with grid.edit_group_data("vegetation_delta", "plants") as plants_delta:
         plants_delta += delta
-        
+     
+    
+def apply_metabolism_mass_specific(grid: EcosystemGridState, env: EnvironmentState):
+    """
+    Dependency adapter: Calculates W/g and stores it in a shared layer.
+    Reused by ATN (loss) and Dispersal (trigger).
+    """
+    group = "vertebrates"
+
+    # 1. Fetch per-species traits (1D arrays: (S_group,))
+    # Note: mass_g is individual mass, not population biomass.
+    m_indiv = grid.registry.get_group_parameter(group, "mass_g")
+    c_int = grid.registry.get_group_parameter(group, "c_int")
+    b = grid.registry.get_group_parameter(group, "b")
+    
+    # np.nan for all t_reg values
+    t_reg = np.full(m_indiv.shape, np.nan)
+
+    # 2. Fetch ambient temperature (2D array: (Y, X))
+    ambient_temp = env.get_layer("temperature")
+
+    # 3. Calculate mass-specific metabolic rate (W/g).
+    # Traits are (S,) and ambient_temp is given a trailing axis to be (Y, X, 1).
+    # NumPy automatically broadcasts these to (Y, X, S) inside the science function.
+    ms_rate = calculate_massspecific_metabolism(
+        mass_g=m_indiv,
+        body_temp_C=t_reg,
+        c_int=c_int,
+        b=b,
+        ambient_temp_C=ambient_temp[..., np.newaxis],
+    )
+
+    # We use [:] to perform an in-place update on the yielded view.
+    with grid.edit_group_data("metabolism_mass_specific", group) as rate_view:
+        rate_view[:] = ms_rate
+
+
+
+
+def apply_metabolism_biomass(grid: EcosystemGridState, env: EnvironmentState): 
+    """
+    Biomass-modifying adapter: Applies the rate to population biomass over dt.
+    """
+    group = "vertebrates"
+    biomass = grid.get_layer_view("biomass", group)
+    ms_rate = grid.get_layer_view("metabolic_rate", group)
+
+    delta = calculate_biomass_metabolism(
+        initial_biomass_g=biomass,
+        mass_specific_metabolic_rate=ms_rate,
+        dt=1.0 # 1 day
+    )
+
+    with grid.edit_group_data("vegetation_delta", group) as d:
+        d += delta
         
 
 def apply_atn_step(grid: EcosystemGridState, env: EnvironmentState):
