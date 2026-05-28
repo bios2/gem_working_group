@@ -16,6 +16,7 @@ experiments/sunday_vegetation_experiments_design/context/MadingleyR/
 
 # macOS
 .DS_Store
+<<<<<<< HEAD
 
 # Python cache
 __pycache__/
@@ -24,3 +25,10 @@ gem.egg-info/
 
 # Agent-specific local settings
 .claude/settings.json
+
+# External dependencies cloned by init.sh -- do not commit
+experiments/sunday_vegetation_experiments_design/context/MadingleyR/
+
+
+=======
+>>>>>>> refs/remotes/origin/orchestrated_vegatn

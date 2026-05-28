@@ -1,0 +1,36 @@
+# ATN model configuration
+# Format: key = value   # optional comment
+# Booleans: True or False   Scientific notation: 1e-6, 8.617e-5
+
+# ===== ALLOMETRIC RATE CONSTANTS =====
+X0             = 0.5       # metabolic rate normalization (day^-1)
+b_X            = -0.25     # metabolic exponent
+a0             = 0.001     # attack rate normalization (day^-1)
+b_a_prey       = -0.5      # attack rate prey exponent
+b_a_pred       = 0.5       # attack rate predator exponent
+h0             = 0.01      # handling time normalization (days)
+b_h_prey       = 0.5       # handling time prey exponent
+b_h_pred       = -0.5      # handling time predator exponent
+
+# ===== FUNCTIONAL RESPONSE =====
+q_hill         = 2.0       # Hill exponent (Type II ~= 2)
+interference   = 0.0       # consumer interference coefficient
+
+# ===== ASSIMILATION EFFICIENCIES =====
+e_plant        = 0.45      # plant assimilation (overridden by assimilation_plant in traits.txt)
+e_animal       = 0.85      # animal assimilation (overridden by assimilation_animal in traits.txt)
+
+# ===== VEGETATION GROWTH =====
+psi                 = 9.813  # C-to-wet-matter conversion (g wet / g C)
+f_struct_default    = 0.3    # default fraction of NPP to structural tissue
+alpha_herbs_default = 1.0    # half-saturation constant for herb/tree competition (g/m2)
+
+# ===== TEMPERATURE DEPENDENCE =====
+use_temperature = True     # apply temperature scaling to rates (True or False)
+T0_K            = 293.15   # reference temperature (K, 20 C)
+k_B             = 8.617e-5 # Boltzmann constant (eV/K)
+E_a             = 0.65     # activation energy (eV)
+
+# ===== EXTINCTION =====
+ext_threshold        = 1e-6  # biomass below this is treated as extinct (g/m2)
+extinction_timescale = 0.1   # decay timescale for extinct species (days)

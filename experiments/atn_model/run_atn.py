@@ -150,8 +150,11 @@ def main(env_file: str, adj_file: str, traits_file: str,
             fsum.write("MODEL CONSTANTS (CONFIG)\n")
             fsum.write("-" * 40 + "\n")
             descriptions = {
-                'r0':                  'Basal growth rate normalization (day^-1)',
-                'b_r':                 'Basal growth mass exponent',
+                # Vegetation growth (NPP-driven, vegetation.md equation)
+                'psi':                 'Carbon to wet matter conversion factor (g wet / g C)',
+                'f_struct_default':    'Default fractional NPP allocation to structural tissue',
+                'alpha_herbs_default': 'Half-saturation constant for herb/tree partition (g/m²)',
+                # Allometric rates
                 'X0':                  'Metabolic loss rate normalization (day^-1)',
                 'b_X':                 'Metabolic loss mass exponent',
                 'a0':                  'Attack rate normalization (day^-1)',
@@ -160,18 +163,21 @@ def main(env_file: str, adj_file: str, traits_file: str,
                 'h0':                  'Handling time normalization (days)',
                 'b_h_prey':            'Handling time prey mass exponent',
                 'b_h_pred':            'Handling time predator mass exponent',
+                # Functional response
                 'q_hill':              'Hill exponent for functional response',
                 'interference':        'Consumer interference coefficient',
                 'R_opt':               'Optimal predator/prey body mass ratio',
                 'gamma':               'L-matrix body-size matching sharpness',
                 'link_threshold':      'Minimum L-matrix link strength',
+                # Efficiency
                 'e_plant':             'Assimilation efficiency — plant prey',
                 'e_animal':            'Assimilation efficiency — animal prey',
-                'K_default':           'Default plant carrying capacity (g/m²)',
+                # Temperature
                 'use_temperature':     'Apply temperature scaling to rates',
                 'T0_K':                'Reference temperature (K)',
                 'k_B':                 'Boltzmann constant (eV/K)',
                 'E_a':                 'Activation energy (eV)',
+                # Numerical
                 'ext_threshold':       'Extinction threshold (g/m²)',
                 'extinction_timescale':'Decay timescale for extinct species (days)',
             }

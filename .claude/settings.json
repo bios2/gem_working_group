@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python -m pip install numpy pandas matplotlib jupyter ipykernel rasterio)",
+      "Bash(/Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/context/MadingleyR/Package/inst/mac_exec/madingley help *)",
+      "Bash(echo \"---exit=$?\")",
+      "Bash(/Users/laura/Desktop/gem_working_group/experiments/sunday_vegetation_experiments_design/context/MadingleyR/Package/inst/mac_exec/madingley spin *)",
+      "Bash(find /Users/laura/.claude -maxdepth 4 -type f | sort)",
+      "Read(//Users/laura/.claude/**)",
+      "Bash(softwareupdate --history)"
+    ]
+  }
+}
