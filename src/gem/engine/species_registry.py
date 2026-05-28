@@ -3,7 +3,7 @@ import numpy as np
 class SpeciesRegistry:
     def __init__(self, num_species: int):
         self.num_species = num_species
-        self.groups = {"all": np.arange(num_species)}
+        self.groups = {"all": list(range(num_species))}
         
         # Still stores the 1D arrays under the hood for fast matrix math
         self.params = {}
