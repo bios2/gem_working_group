@@ -6,7 +6,7 @@ them, and precompute every array that is constant in time (base_a, base_h,
 base_X, assimilation matrix E, temperatures, basal/consumer indices).
 
 The result is:
-  - params : dict consumed directly by atn_processes.derivatives()
+  - params : dict consumed directly by gem_working_group.src.gem.atn_processes.derivatives()
   - vegetation : a PlantVegetationModel instance shared across the run
 
 No ODE integration happens here. No process computation happens here.
@@ -21,7 +21,7 @@ from atn_io import (
     read_config, read_env_matrix, read_adjacency_matrix, read_traits,
     validate_inputs, check_parameter_completeness,
 )
-from atn_processes import (
+from gem_working_group.src.gem.atn import (
     attack_rate_matrix, handling_time_matrix,
     metabolic_base_rate, assimilation_matrix,
 )

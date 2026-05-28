@@ -23,7 +23,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from atn_data import load_inputs, build_atn_params, initial_biomass
-from atn_processes import derivatives
+from gem_working_group.src.gem.atn import derivatives
 from atn_io import ValidationError
 
 
