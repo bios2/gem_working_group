@@ -1,0 +1,2 @@
+pixel_id,x,y,temperature_K,K_plant_0,K_plant_1,K_plant_2,K_plant_3,K_plant_4,K_plant_5,K_plant_6,K_plant_7,K_plant_8,K_plant_9,K_plant_10,K_plant_11,K_plant_12,K_plant_13,K_plant_14,K_plant_15,K_plant_16,K_plant_17,K_plant_18,K_plant_19,K_plant_20,K_plant_21,K_plant_22,K_plant_23,K_plant_24
+0,0,0,288.15,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0,100.0
