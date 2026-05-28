@@ -40,7 +40,7 @@ The notation below is written for a spatial model in which each grid cell has it
 ## 1.1 Indices
 
 | Symbol | Meaning |
-|------------------------------------|------------------------------------|
+|----|----|
 | $i$ | focal species or resource species |
 | $j$ | consumer species |
 | $k$ | resource species summed over in functional responses |
@@ -677,7 +677,7 @@ where the derivative for each cell includes local ATN dynamics plus spatial move
 ## 16.1 Core state variables
 
 | Symbol | Meaning | Dimension |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | $B_{i,g}(t)$ | biomass of species $i$ in cell $g$ | species $\times$ cells $\times$ time |
 | $N_{n,g}(t)$ | nutrient concentration of nutrient $n$ in cell $g$ | nutrients $\times$ cells $\times$ time |
 | $I_{i,g}(t)$ | local presence indicator | species $\times$ cells $\times$ time |
@@ -687,7 +687,7 @@ where the derivative for each cell includes local ATN dynamics plus spatial move
 ## 16.2 Structural parameters
 
 | Symbol | Meaning | Spatial/time version |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | $S$ | total regional species pool size | usually global scalar |
 | $S_g(t)$ | local richness in cell $g$ | cell and time specific |
 | $n_b$ | number of basal species in regional pool | usually global scalar |
@@ -702,7 +702,7 @@ where the derivative for each cell includes local ATN dynamics plus spatial move
 ## 16.3 Environmental parameters
 
 | Symbol | Meaning | Spatial/time version |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | $T_{K,g}(t)$ | temperature in Kelvin | cell and time specific |
 | $T_0$ | reference temperature | global scalar |
 | $k$ | Boltzmann constant | global scalar |
@@ -713,7 +713,7 @@ where the derivative for each cell includes local ATN dynamics plus spatial move
 ## 16.4 Biological-rate parameters
 
 | Symbol | Meaning | Spatial/time version |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | $r_{i,g}(t)$ | basal maximum growth rate | basal species, cell, and time specific |
 | $X_{i,g}(t)$ | metabolic loss rate | species, cell, and time specific |
 | $a_{ij,g}(t)$ | attack/clearance rate | resource, consumer, cell, and time specific |
@@ -729,7 +729,7 @@ where the derivative for each cell includes local ATN dynamics plus spatial move
 ## 16.5 Nutrient-model parameters
 
 | Symbol | Meaning | Spatial/time version |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | $K_{ni,g}(t)$ | nutrient half-saturation parameter | nutrient, basal species, cell, and time specific |
 | $v_{ni,g}(t)$ | nutrient content of basal species | nutrient, basal species, cell, and time specific |
 | $N_{n,g}(t)$ | nutrient concentration | nutrient, cell, and time specific |

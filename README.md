@@ -105,10 +105,9 @@ The model evolves the ecosystem by composing modular **processes** — vegetatio
 
 The full contract is specified in [docs/processes_implementation_specification.md](docs/processes_implementation_specification.md). What every contributor needs to know:
 
-- **Two process categories.** Biomass-modifying processes (vegetation, ATN, dispersal) return a `biomass_delta` array — the finite change in biomass over one time step `dt`. Dependency processes (metabolism, NPP, ...) return a shared intermediate quantity (rate, flux, factor) consumed by *multiple* biomass-modifying processes; they take no `dt`.
+- **Two process categories.** Biomass-modifying processes (vegetation, ATN, dispersal) return a `biomass_delta` array — the finite change in biomass over one time step `dt`. Dependency processes (metabolism, NPP, ...) return a shared intermediate quantity (rate, flux, factor) consumed by *multiple* biomass-modifying processes.
 - **Numpy at the process's natural dimensionality.** The same science code runs on a single cell, a row, or the full `(X, Y, S)` grid via standard broadcasting. Per-cell python loops are the main performance trap and are not acceptable.
 - **Typed signatures, runtime shape asserts.** All arrays are `NDArray[np.float64]`; scalars are `float`. A one-line shape `assert` at the top of each science function catches broadcast mismatches early.
-- **ODE-style processes** (ATN and any other rate-based formulation) pick an integration strategy explicitly — either integrate `dB/dt` to a delta (`scipy.solve_ivp` or a vectorised RK4 step) or rewrite the science to return `biomass_delta` directly. A continuous-time rate is never the public output of a process.
 
 Adding a new process is the same recipe every time: write a typed science function in its own module (`vegetation.py`, `atn.py`, `dispersal.py`, `metabolism.py`, ...) that imports nothing but `numpy`, add a runtime shape assert, and add a unit test against hand-built arrays. How the function is wired into a running simulation is the engine's concern, covered below.
 

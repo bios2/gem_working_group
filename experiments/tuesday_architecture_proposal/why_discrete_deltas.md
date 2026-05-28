@@ -1,6 +1,6 @@
-# Discretization: ODE vs discrete-time, and what the engine contract should be
+# Why the engine asks for discrete biomass deltas
 
-This document synthesizes the findings, analysis, and recommendation from a working chat session on whether the simulation engine should ask processes to return **discrete biomass deltas** (`delta_B` per engine time step) or **continuous-time derivatives** (`dB/dt`). It supports criticism #2 and criticism #4 in [`README.md`](README.md) and the contract specification in [`context/process_contract_spec.md`](context/process_contract_spec.md).
+This document captures the rationale for a decision already made: the simulation engine asks processes to return **discrete biomass deltas** (`delta_B` per engine time step) rather than **continuous-time derivatives** (`dB/dt`). It supports criticism #2 and criticism #4 in [`README.md`](README.md) and the contract specification in [`../../docs/processes_implementation_specification.md`](../../docs/processes_implementation_specification.md).
 
 ## 1. Background: two ways of writing a dynamical process
 
@@ -89,45 +89,15 @@ If every process inherits the same engine `dt`, the choice of `dt` is constraine
 
 This cost is acknowledged but considered acceptable: explicit per-process pacing is easier for an ecology team to reason about than tuning solver tolerances.
 
-## 7. Proposal
+## 7. Decision
 
-**The engine contract is a discrete biomass delta per engine time step.** One signature, no exceptions:
+The engine contract is a `biomass_delta` per engine time step. Processes whose published formulation is a rate (`dB/dt = f(B, ...)`) convert that rate into a delta inside their own science module; the engine does not own an integrator.
 
-```text
-delta_B = process_science(state_arrays..., params, dt)    # pure, NumPy in / NumPy out
-apply_<process>(grid, env, dt)                            # adapter, calls science and writes delta
-```
-
-ODE-style processes integrate the rate to a delta **inside their own adapter** using a shared numerical helper from `numerics.py`:
-
-```python
-# adapter for an ODE-style process — lives in processes.py next to the engine
-from . import atn, numerics
-
-def apply_atn(grid, env, dt):
-    B = grid.layers["biomass"]
-    rate = lambda B_state: atn.atn_derivative(B_state, traits, adj, env, params, dt)
-    delta = numerics.rk4_step(rate, B, dt=dt, n_substeps=4)
-    grid.add_delta("biomass", slice(None), delta)
-```
-
-The integration scheme and substep count are written explicitly in the adapter — a reader sees in one file both the science (the rate) and the numerical choice (RK4 with N substeps). This satisfies the four priorities:
+This satisfies the four priorities from §3:
 
 - **Performance**: vectorised across the whole grid; no per-cell Python loops.
-- **Testability**: science function is a pure NumPy-in, NumPy-out function; trivially unit-tested.
-- **Reusability**: one engine signature; processes compose by summing deltas; shared `numerics` helpers reused across adapters.
-- **Scientific transparency**: numerical scheme visible in the same file as the science, not hidden in framework code.
+- **Testability**: the science function is a pure NumPy-in, NumPy-out function; trivially unit-tested.
+- **Reusability**: one engine signature; processes compose by summing deltas.
+- **Scientific transparency**: the conversion from rate to delta lives next to the science, not hidden in framework code.
 
-The full module layout and signature conventions are specified in [`context/process_contract_spec.md`](context/process_contract_spec.md).
-
-## 8. Validation work the proposal implies
-
-If the proposal is adopted, the ATN team carries out one validation task before relying on the new path:
-
-1. Port `derivatives` into a vectorised `atn.atn_derivative(B, traits, adj, env, params, dt) -> dB_dt` operating on broadcast-friendly arrays, living in `src/gem_working_group/atn.py`.
-2. Build the adapter `apply_atn(grid, env, dt)` in `src/gem_working_group/processes.py` using `numerics.rk4_step`.
-3. Run a representative scenario (e.g. one of the existing `reproduce_atnr_figures.py` cases) under both the legacy per-cell `scipy.odeint` path and the new vectorised RK4 path.
-4. Tune `n_substeps` until trajectories match to a documented tolerance; commit the comparison plot.
-5. Document the chosen `n_substeps` and its validation in the ATN adapter.
-
-After this, the team can trust the new path as the production path; the legacy `scipy.odeint` path is retained as a reference implementation for future revalidation when ATN parameter regimes change.
+The full contract — signatures, shape rules, how a rate-formulated process is structured — is specified in [`../../docs/processes_implementation_specification.md`](../../docs/processes_implementation_specification.md) (see §7 for rate-formulated processes specifically).
