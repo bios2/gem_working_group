@@ -11,10 +11,16 @@ Each test must be written in a different file and output a .png figure called te
 ## Test 1 
 H : When b = 0, the relationship between invasion front (1E-06 threshold) and time should be sublinear
 
+O : Confirmed
+
 ## Test 2
 H : With the same resource grid (growth_rate grid), density-dependent dispersal should be higher for species with high metabolism (= 1.0) than low metabolism  (=0.1) (hummingbird vs black bear scenario), all else being equal
 
+O : Confirmed
+
 ## Test 3
 H : All else being equal, species with high maximum dispersal (a = 0.8) should disperse further than species with low dispersal (a = 0.2)
+
+O : Confirmed 
 
 
