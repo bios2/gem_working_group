@@ -11,9 +11,6 @@ mad <- list(
   PNPP            = 0.001184101,
   FracStructScalar = 7.154615419,
   MaxFracStruct    = 0.362742634,
-  A_FracEver       = 1.270782192,
-  B_FracEver       = -1.828591558,
-  C_FracEver       = 0.844864063,
   MEG_LeafMort     = 0.040273936,
   CEG_LeafMort     = 1.013070062,
   MD_LeafMort      = 0.020575964,
@@ -53,20 +50,6 @@ calc_frac_struct <- function(npp) {
   fs * mad$MaxFracStruct
 }
 
-calc_frac_struct_herb <- function(npp) {
-  # Herbs have negligible structural tissue (no woody stems)
-  min_fs <- 0.01
-  max_fs_herb <- 0.05  # much lower structural allocation than trees
-  fs <- min_fs * (exp(mad$FracStructScalar * npp) /
-        (1 + min_fs * (exp(mad$FracStructScalar * npp) - 1)))
-  fs <- min(fs, 1 - min_fs)
-  fs * max_fs_herb
-}
-
-calc_frac_evergreen <- function(ndf) {
-  frac <- mad$A_FracEver * ndf^2 + mad$B_FracEver * ndf + mad$C_FracEver
-  max(0, min(1, frac))
-}
 
 calc_eg_leaf_mort <- function(temp) {
   r <- exp(mad$MEG_LeafMort * temp - mad$CEG_LeafMort)
@@ -114,7 +97,6 @@ clim <- list(
   # Monthly AET (mm) from Madingley soil-water balance simulation
   aet_monthly = c(10.43, 11.65, 18.63, 32.26, 50.93, 69.27, 79.43,
                   75.21, 59.07, 40.52, 25.49, 15.06),
-  ndf = 0.5168,  # fraction year frost (NDF)
   lfs = 0.0000   # fraction year fire (LFS)
 )
 
@@ -132,10 +114,10 @@ npp_pos      <- pmax(0, clim$npp_raw)
 seasonality  <- npp_pos / sum(npp_pos)
 npp_monthly  <- annual_npp * seasonality  # kg C/m2/month (sums to annual_npp)
 
-# Fractional allocation to structural tissue (uses annual NPP)
+# Fractional allocation to structural tissue (trees only; herbs have no structural tissue)
 f_struct_ever  <- calc_frac_struct(annual_npp)
-f_struct_decid <- calc_frac_struct(annual_npp)  # same formula, same annual NPP
-f_struct_herb  <- calc_frac_struct_herb(annual_npp)
+f_struct_decid <- calc_frac_struct(annual_npp)
+f_struct_herb  <- 0
 
 # Annual leaf mortality rates (yr^-1)
 mu_ever  <- calc_eg_leaf_mort(mean_temp)
@@ -152,9 +134,6 @@ f_leafmort_herb  <- calc_leaf_frac_alloc(mu_herb,  froot_mort)
 
 # Structural mortality (yr^-1)
 struct_mort <- calc_struct_mort(total_aet)
-
-# Fraction year evergreen (used for reference, not directly in our competition formulation)
-frac_ever <- calc_frac_evergreen(clim$ndf)
 
 # Cell area for 1-degree cell at lat 45.4° (m^2)
 A_cell <- cos(45.4 * pi / 180) * (111000)^2  # ~8.65e9 m^2
@@ -214,7 +193,6 @@ get_sherbrooke_params <- function(
 
     # Diagnostics
     annual_npp   = annual_npp,
-    frac_ever    = frac_ever,
     struct_mort  = struct_mort,
     mean_temp    = mean_temp,
     total_precip = total_precip,
@@ -229,13 +207,13 @@ get_sherbrooke_params <- function(
 make_initial_conditions <- function(params) {
   a_max <- params$a_max
 
-  # Occupancy: distribute uniformly across ages and tree types, proportional to frac_ever
+  # Occupancy: equal initial split between evergreen and deciduous,
+  # exponential age distribution at steady state for each type
   p_init <- matrix(0, 2, a_max)
-  # Steady-state approximation: exponential age distribution
   ages   <- 1:a_max
   e      <- params$e_monthly
-  p_init[1, ] <- params$frac_ever     * exp(-e[1] * ages) * e[1] / (1 - exp(-e[1]))
-  p_init[2, ] <- (1 - params$frac_ever) * exp(-e[2] * ages) * e[2] / (1 - exp(-e[2]))
+  p_init[1, ] <- 0.5 * exp(-e[1] * ages) * e[1] / (1 - exp(-e[1]))
+  p_init[2, ] <- 0.5 * exp(-e[2] * ages) * e[2] / (1 - exp(-e[2]))
 
   # Normalize to sum to 1
   p_init <- p_init / sum(p_init)

@@ -1,4 +1,4 @@
-source("code/sherbrooke_parameters.R")  # pour calc_miami_npp
+source("code/extract_parameters.R")  # pour calc_miami_npp
 
 # ---- Grille T x P ----
 temps  <- seq(-15, 35, length.out = 300)

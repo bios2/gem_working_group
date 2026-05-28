@@ -16,7 +16,7 @@ run_vegetation <- function(p_init, b_tree_init, b_herb_init, params, n_steps) {
   #   p_init      : 2 x a_max matrix, initial patch occupancy (must sum to 1)
   #   b_tree_init : 2 x a_max matrix, initial tree biomass (kg C/m2 per patch)
   #   b_herb_init : 2 x a_max matrix, initial herb biomass (kg C/m2 per patch)
-  #   params      : named list (see sherbrooke_parameters.R for structure)
+  #   params      : named list (see extract_parameters.R for structure)
   #   n_steps     : number of monthly time steps
 
   a_max  <- params$a_max

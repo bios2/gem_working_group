@@ -44,9 +44,9 @@ where $\beta_i$ (yr$^{-1}$) is the functional-group-specific herbivory rate.
 
 ### Growth and Competition
 
-$$\Delta^{\mathrm{Growth}}_{i,a,x,t} = \mathit{NPP}_{x,t}\;\psi\;\delta\;(1 - f_{\mathrm{struct},i})\;f_{\mathrm{LeafMort},i}\;C_{i,a,x,t}$$
+$$\Delta^{\mathrm{Growth}}_{i,a,x,t} = \mathit{NPP}_{x,t}\;\psi\;\delta\;(1 - f_{\mathrm{struct},i,x})\;f_{\mathrm{LeafMort},i,x}\;C_{i,a,x,t}$$
 
-where $\mathit{NPP}_{x,t}$ is monthly terrestrial NPP (kg C m$^{-2}$ month$^{-1}$), $\psi$ is the conversion factor from carbon to leaf wet matter, $f_{\mathrm{struct},i}$ is the fractional allocation of primary production to structural tissue, and $f_{\mathrm{LeafMort},i}$ is the fraction of non-structural production allocated to leaves.
+where $\mathit{NPP}_{x,t}$ is monthly terrestrial NPP (kg C m$^{-2}$ month$^{-1}$), $\psi$ is the conversion factor from carbon to leaf wet matter, $f_{\mathrm{struct},i,x}$ is the fractional allocation of primary production to structural tissue, and $f_{\mathrm{LeafMort},i,x}$ is the fraction of non-structural production allocated to leaves. Herbs lack woody structural tissue, so by definition $f_{\mathrm{struct,herb}} \equiv 0$; the allocation formula (Section Climate-Dependent Parameters) applies to trees only ($j \in \{\mathrm{ever, decid}\}$).
 
 #### Asymmetric competition via light attenuation
 
@@ -94,57 +94,65 @@ Fire resets all leaf biomass to zero in newly created patches: $b_{j,0} = b_{\ma
 
 Annual NPP follows the Miami model (Lieth 1975):
 
-$$\mathit{NPP}^{T}_{y} = \min\!\left(\mathit{NPP}_{T},\; \mathit{NPP}_{P}\right)$$
+$$\mathit{NPP}^{T}_{x,y} = \min\!\left(\mathit{NPP}_{T,x},\; \mathit{NPP}_{P,x}\right)$$
 
-$$\mathit{NPP}_{T} = \frac{\mathit{NPP}_{\max}}{1 + e^{\,c_p - m_p\,\bar{T}}}$$
+$$\mathit{NPP}_{T,x} = \frac{\mathit{NPP}_{\max}}{1 + e^{\,c_p - m_p\,\bar{T}_x}}$$
 
-$$\mathit{NPP}_{P} = \mathit{NPP}_{\max}\!\left(1 - e^{-\rho\, P}\right)$$
+$$\mathit{NPP}_{P,x} = \mathit{NPP}_{\max}\!\left(1 - e^{-\rho\, P_x}\right)$$
 
-where $\mathit{NPP}_{\max}$ is the maximum possible NPP (kg C m$^{-2}$ yr$^{-1}$), $c_p$ and $m_p$ are coefficients relating NPP to mean annual temperature $\bar{T}$ (°C), and $\rho$ relates NPP to total annual precipitation $P$ (mm yr$^{-1}$).
+where $\mathit{NPP}_{\max}$ is the maximum possible NPP (kg C m$^{-2}$ yr$^{-1}$), $c_p$ and $m_p$ are coefficients relating NPP to mean annual temperature $\bar{T}_x$ (°C), and $\rho$ relates NPP to total annual precipitation $P_x$ (mm yr$^{-1}$).
 
-Monthly NPP is obtained by scaling annual NPP by the monthly seasonality factor $\omega_{\mathrm{cell},m}$ (derived from Terra/MODIS remote-sensing data):
+Monthly NPP is obtained by scaling annual NPP by the monthly ($m$) seasonality factor at location $x$, $\omega_{x,m}$ (derived from Terra/MODIS remote-sensing data):
 
-$$\mathit{NPP}^{T}_{m} = \mathit{NPP}^{T}_{y}\cdot\omega_{\mathrm{cell},m}$$
+$$\mathit{NPP}^{T}_{x,m} = \mathit{NPP}^{T}_{x,y}\cdot\omega_{x,m}$$
 
-### Fractional Allocation to Structural Tissue
+### Fractional Allocation to Structural Tissue (trees only)
 
-$$f_{\mathrm{struct}} = \min\!\left(\frac{f^{\min}_{\mathrm{struct}}\,e^{\,\theta_{f_{\mathrm{struct}}}\,\mathit{NPP}^{T}_{y}}}{1 + f^{\min}_{\mathrm{struct}}\!\left(e^{\,\theta_{f_{\mathrm{struct}}}\,\mathit{NPP}^{T}_{y}} - 1\right)},\;0.99\right) \cdot f^{\max}_{\mathrm{struct}}$$
+For tree functional groups ($j \in \{\mathrm{ever, decid}\}$), the fraction of NPP allocated to structural tissue is:
 
-where $f^{\min}_{\mathrm{struct}} = 0.01$.
+$$f_{\mathrm{struct},j,x} = \min\!\left(\frac{f^{\min}_{\mathrm{struct}}\,e^{\,\theta_{f_{\mathrm{struct}}}\,\mathit{NPP}^{T}_{x,y}}}{1 + f^{\min}_{\mathrm{struct}}\!\left(e^{\,\theta_{f_{\mathrm{struct}}}\,\mathit{NPP}^{T}_{x,y}} - 1\right)},\;0.99\right) \cdot f^{\max}_{\mathrm{struct}}$$
+
+where $f^{\min}_{\mathrm{struct}} = 0.01$. For herbs, $f_{\mathrm{struct,herb}} \equiv 0$.
 
 ### Leaf Mortality Rates
 
-The mean leaf mortality rate is a weighted average of evergreen and deciduous rates:
+Each functional group has its own annual leaf mortality rate depending on mean annual temperature $\bar{T}^C_x$ (°C):
 
-$$\mu_{\mathrm{Leaf}} = \dot{\iota}\;e^{\,f_{\mathrm{ever}}\ln\mu_{\mathrm{ever}} + (1-f_{\mathrm{ever}})\ln\mu_{\mathrm{decid}}}$$
+$$\mu_{\mathrm{ever},x} = e^{\,(m_{e}\,\bar{T}^C_x - c_{e})}$$
 
-The evergreen and deciduous leaf mortality rates depend on mean annual temperature $\bar{T}^C$ (°C):
+$$\mu_{\mathrm{decid},x} = e^{\,-(m_{d}\,\bar{T}^C_x + c_{d})}$$
 
-$$\mu_{\mathrm{ever}} = e^{\,(m_{e}\,\bar{T}^C - c_{e})}$$
+$$\mu_{\mathrm{herb},x} = \mu_{\mathrm{decid},x}$$
 
-$$\mu_{\mathrm{decid}} = e^{\,-(m_{d}\,\bar{T}^C + c_{d})}$$
-
-Both rates are bounded: $\mu_{\mathrm{ever}} \in [\mu^{\min}_{e},\,\mu^{\max}_{e}]$ and $\mu_{\mathrm{decid}} \in [\mu^{\min}_{d},\,\mu^{\max}_{d}]$.
+Herbs have the same seasonal leaf turnover as deciduous plants. The tree rates are bounded: $\mu_{\mathrm{ever},x} \in [\mu^{\min}_{e},\,\mu^{\max}_{e}]$ and $\mu_{\mathrm{decid},x} \in [\mu^{\min}_{d},\,\mu^{\max}_{d}]$.
 
 ### Fine Root Mortality Rate
 
-$$\mu_{\mathrm{FineRoot}} = e^{\,m_r\,T^C_{(t)} + c_r}$$
+$$\mu_{\mathrm{FineRoot},x,t} = e^{\,m_r\,T^C_{x,t} + c_r}$$
 
-where $T^C_{(t)}$ is the monthly mean temperature (°C). The rate is bounded: $\mu_{\mathrm{FineRoot}} \in [\mu^{\min}_{r},\,\mu^{\max}_{r}]$.
+where $T^C_{x,t}$ is the monthly mean temperature (°C) at cell $x$ and time $t$. The rate is bounded: $\mu_{\mathrm{FineRoot},x,t} \in [\mu^{\min}_{r},\,\mu^{\max}_{r}]$.
 
 ### Fractional Leaf Allocation
 
-The fraction of non-structural NPP allocated to leaves (versus fine roots) is:
+The fraction of non-structural NPP allocated to leaves (versus fine roots) is computed separately for each functional group using its own leaf mortality rate:
 
-$$f_{\mathrm{LeafMort}} = \frac{\mu_{\mathrm{Leaf}}}{\mu_{\mathrm{Leaf}} + \mu_{\mathrm{FineRoot}}}$$
+$$f_{\mathrm{LeafMort},i,x} = \frac{\mu_{i,x}}{\mu_{i,x} + \mu_{\mathrm{FineRoot},x}}$$
 
-### Proportion of Evergreen Productivity
+### Fire Disturbance Rate
 
-The fraction of NPP produced by evergreen leaves depends on the fraction of the year experiencing frost ($F_{\mathrm{frost}}$, the normalized number of frost days):
+The base annual disturbance rate is adapted from the Madingley source code (`TerrestrialCarbon.cpp`). It combines two logistic responses: one to annual NPP and one to the fraction of the year subject to fire conditions ($F_{\mathrm{fire},x}$):
 
-$$f_{\mathrm{ever}} = a_{f_{\mathrm{ever}}}\,F_{\mathrm{frost}}^{2} + b_{f_{\mathrm{ever}}}\,F_{\mathrm{frost}} + c_{f_{\mathrm{ever}}}$$
+$$e_{\mathrm{base},x} = \max\!\left(e_{\min},\; s_{\mathrm{fire}} \cdot \frac{1}{1 + e^{-\kappa_{\mathrm{NPP}}\left(\mathit{NPP}^T_{x,y} - \eta_{\mathrm{NPP}}\right)}} \cdot \frac{1}{1 + e^{-\kappa_{\mathrm{LFS}}\left(F_{\mathrm{fire},x} - \eta_{\mathrm{LFS}}\right)}}\right)$$
 
-bounded to $[0, 1]$.
+Note: in the original Madingley model this formula computes a leaf mortality rate. Here it is reinterpreted as a **patch disturbance rate** (annual probability of complete biomass reset to zero).
+
+Evergreen and deciduous trees differ in fire susceptibility. The type-specific annual rates are:
+
+$$e_{j,x} = \min\!\left(1,\; k_j \cdot e_{\mathrm{base},x}\right), \quad j \in \{\mathrm{ever, decid}\}$$
+
+where $k_j$ is a fire-susceptibility multiplier ($k_{\mathrm{ever}} > 1$: evergreens more prone; $k_{\mathrm{decid}} < 1$: deciduous less prone). The annual rate is converted to a monthly disturbance probability as:
+
+$$e_{j,x,\Delta t} = 1 - (1 - e_{j,x})^{1/12}$$
 
 ## Parameter Values
 
@@ -173,37 +181,45 @@ bounded to $[0, 1]$.
 | $c_r$ | Intercept | $-1.4784$ | -- |
 | $\mu^{\min}_{r}$ | Minimum rate | 0.01 | yr$^{-1}$ |
 | $\mu^{\max}_{r}$ | Maximum rate | 12.0 | yr$^{-1}$ |
-| **Evergreen fraction** | | | |
-| $a_{f_{\mathrm{ever}}}$ | Quadratic coefficient | 1.2708 | -- |
-| $b_{f_{\mathrm{ever}}}$ | Linear coefficient | $-1.8286$ | -- |
-| $c_{f_{\mathrm{ever}}}$ | Intercept | 0.8449 | -- |
 | **Conversion factors** | | | |
 | $\psi$ | C to leaf wet matter | $0.476^{-1}\times 0.213^{-1}$ | g wet g$^{-1}$ C |
+| **Fire disturbance (Madingley source code)** | | | |
+| $s_{\mathrm{fire}}$ | Base fire scalar | 2.0 | -- |
+| $\kappa_{\mathrm{NPP}}$ | NPP logistic slope | 8.419 | -- |
+| $\eta_{\mathrm{NPP}}$ | NPP half-saturation | 1.149 | kg C m$^{-2}$ yr$^{-1}$ |
+| $\kappa_{\mathrm{LFS}}$ | Fire-season logistic slope | 19.984 | -- |
+| $\eta_{\mathrm{LFS}}$ | Fire-season half-saturation | 0.388 | -- |
+| $e_{\min}$ | Minimum disturbance rate | $2.26 \times 10^{-6}$ | yr$^{-1}$ |
 | **New model parameters (this study)** | | | |
 | $\alpha$ | Beer-Lambert shading coefficient | 5.0 | m$^2$ kg$_C^{-1}$ |
 | $\beta_i$ | Herbivory rate by functional group | 0.01--0.05 | yr$^{-1}$ |
-| $e_j$ | Annual fire disturbance rate by tree type | 1/100--1/150 | yr$^{-1}$ |
+| $k_{\mathrm{ever}}$ | Fire-susceptibility multiplier, evergreen | 1.5 | -- |
+| $k_{\mathrm{decid}}$ | Fire-susceptibility multiplier, deciduous | 0.67 | -- |
 | $a_{\max}$ | Maximum tracked patch age | 600 | months |
 
-## Application: Sherbrooke, Canada
+## Climate Space and NPP
 
-Derived parameter values computed for Sherbrooke, Québec, Canada (45.4°N, 71.9°W) using the Madingley spatial raster inputs.
+The figure below shows annual NPP as a function of mean annual temperature and total annual precipitation according to the Miami model (Harfoot et al. 2014). The five case-study locations are shown as white circles.
 
-| Quantity | Value | Units |
-|----------|-------|-------|
-| Mean annual temperature | 3.94 | °C |
-| Total annual precipitation | 1256 | mm yr$^{-1}$ |
-| Total annual AET | 488 | mm yr$^{-1}$ |
-| Fraction of year with frost ($F_{\mathrm{frost}}$) | 0.517 | -- |
-| Fraction of year with fire ($F_{\mathrm{fire}}$) | 0.000 | -- |
-| Annual NPP (Miami model) | 0.519 | kg C m$^{-2}$ yr$^{-1}$ |
-| $f_{\mathrm{ever}}$ | 0.239 | -- |
-| $f_{\mathrm{struct}}$ | 0.106 | -- |
-| $\mu_{\mathrm{ever}}$ | 0.426 | yr$^{-1}$ |
-| $\mu_{\mathrm{decid}}$ | 3.047 | yr$^{-1}$ |
-| $\mu_{\mathrm{FineRoot}}$ | 0.270 | yr$^{-1}$ |
-| $f_{\mathrm{LeafMort,ever}}$ | 0.612 | -- |
-| $f_{\mathrm{LeafMort,decid}}$ | 0.919 | -- |
+![NPP in climate space](../figures/npp_climate_space.png)
+
+## Application: Case-Study Locations
+
+Derived parameter values computed for five locations spanning a broad climatic gradient. Climate inputs (T, P) are from the Madingley spatial rasters; AET and $F_{\mathrm{fire}}$ for non-Sherbrooke sites are estimated from regional climate knowledge (marked †). NPP and all downstream parameters are computed from the Madingley functions.
+
+| Quantity | Sherbrooke<br/>45.4°N, 71.9°W | Iqaluit<br/>63.7°N, 68.5°W | Kelowna<br/>49.9°N, 119.5°W | Vancouver<br/>49.2°N, 123.1°W | Panama City<br/>8.9°N, 79.5°W |
+|---|---|---|---|---|---|
+| Mean annual temperature (°C) | 3.94 | −9.83 | 2.71 | 5.28 | 25.91 |
+| Total annual precipitation (mm yr$^{-1}$) | 1256 | 419 | 697 | 2293 | 2498 |
+| Total annual AET (mm yr$^{-1}$) | 488 | 175† | 395† | 630† | 1450† |
+| $F_{\mathrm{fire}}$ | 0.000 | 0.030† | 0.250† | 0.010† | 0.120† |
+| Annual NPP (kg C m$^{-2}$ yr$^{-1}$) | 0.519 | 0.218 | 0.489 | 0.551 | 0.879 |
+| $f_{\mathrm{struct}}$ | 0.106 | 0.017 | 0.091 | 0.124 | 0.307 |
+| $\mu_{\mathrm{ever}}$ (yr$^{-1}$) | 0.426 | 0.244 | 0.405 | 0.449 | 1.031 |
+| $\mu_{\mathrm{decid}}$ (yr$^{-1}$) | 3.047 | 4.045 | 3.125 | 2.964 | 1.939 |
+| $\mu_{\mathrm{FineRoot}}$ (yr$^{-1}$) | 0.270 | 0.149 | 0.256 | 0.286 | 0.696 |
+| $f_{\mathrm{LeafMort,ever}}$ | 0.612 | 0.621 | 0.612 | 0.611 | 0.597 |
+| $f_{\mathrm{LeafMort,decid}}$ | 0.919 | 0.964 | 0.924 | 0.912 | 0.736 |
 
 ## References
 

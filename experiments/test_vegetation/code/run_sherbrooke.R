@@ -1,7 +1,7 @@
 # Example simulation for Sherbrooke, Canada
 # Runs the vegetation model and saves total regional biomass figure
 
-source("code/sherbrooke_parameters.R")
+source("code/extract_parameters.R")
 source("code/vegetation_model.R")
 
 # ---- Parameters and initial conditions ----
@@ -10,7 +10,6 @@ params <- get_sherbrooke_params()
 
 cat("=== Sherbrooke parameters ===\n")
 cat(sprintf("  Annual NPP (Miami):    %.4f kg C/m2/yr\n", params$annual_npp))
-cat(sprintf("  Fraction evergreen:    %.3f\n",             params$frac_ever))
 cat(sprintf("  Mean temperature:      %.2f C\n",           params$mean_temp))
 cat(sprintf("  Total precipitation:   %.1f mm\n",          params$total_precip))
 cat(sprintf("  Total AET:             %.1f mm\n",          params$total_aet))

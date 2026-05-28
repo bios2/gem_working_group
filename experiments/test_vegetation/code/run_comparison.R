@@ -1,5 +1,5 @@
 # Comparative simulation for Phoenix, Iqaluit, Kelowna, and Sherbrooke
-source("code/sherbrooke_parameters.R")
+source("code/extract_parameters.R")
 source("code/vegetation_model.R")
 
 # ---- Generic parameter function ----
