@@ -66,7 +66,7 @@ I'd prefer two layers:
 
 The adapter is what the engine registers. The science lives in code that does not depend on the engine at all.
 
-The full proposed process contract specification in [`context/process_contract_spec.md`](tuesday_architecture_proposal/context/process_contract_spec.md), meant to be reusable as the canonical reference for `src/` contributions in future `README.md` and `AGENTS.md` / `CLAUDE.md` files.
+The full process contract specification lives in [`../../docs/processes_implementation_specification.md`](../../docs/processes_implementation_specification.md), the canonical reference for `src/` contributions.
 
 ### 3. Group-restricted processes
 
@@ -84,7 +84,7 @@ I am not personally familiar enough with the trade-offs to decide this on my own
 
 The proposal, after a Claude discussion on this question, is to make the engine contract a **discrete biomass delta per engine time step**. ODE-style processes (ATN today, possibly others later) integrate their rate to a delta **inside their own adapter, or are rewritten to directly return the delta**. The engine never sees rates; it only sees deltas, which it sums and applies at the end of the step.
 
-The full findings, comparison, and rationale are written up in [`discretization.md`](tuesday_architecture_proposal/discretization.md). The output and shape conventions this implies for every process are specified in [`context/process_contract_spec.md`](tuesday_architecture_proposal/context/process_contract_spec.md).
+The full findings, comparison, and rationale are written up in [`why_discrete_deltas.md`](why_discrete_deltas.md). The output and shape conventions this implies for every process are specified in [`../../docs/processes_implementation_specification.md`](../../docs/processes_implementation_specification.md).
 
 ### 5. Spatial grid should be on an equal-area projection, not lat-lon
 

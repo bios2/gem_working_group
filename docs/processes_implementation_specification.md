@@ -2,7 +2,7 @@
 
 This document specifies the contract that every ecosystem process (vegetation, ATN, dispersal, metabolism, fire, ...) must follow to be pluggable into the simulation engine described in the architecture proposal. It complements `process_synthesis_atn.md`, `process_synthesis_vegetation.md`, and `process_synthesis_distribution.md` by describing *how* a process is exposed to the engine, independently of *what* it computes.
 
-The spec has six parts: the output contract (biomass deltas for processes that change biomass, named intermediate outputs for dependency processes that don't), the shape convention (broadcast-friendly numpy at the process's natural dimensionality), the typing requirements (dtype-checked signatures and a runtime shape guard), the module layout (science modules independent of the engine, adapters consolidated next to it), worked examples for both process categories, and the handling of ODE-style processes (an explicit section, because their integration scheme is not part of the engine).
+The spec has six parts: the output contract (biomass deltas for processes that change biomass, named intermediate outputs for dependency processes that don't), the shape convention (broadcast-friendly numpy at the process's natural dimensionality), the typing requirements (dtype-checked signatures and a runtime shape guard), the module layout (science modules independent of the engine, adapters consolidated next to it), worked examples for both process categories, and a short note on processes naturally formulated as a rate.
 
 This file is intended to be reused as the canonical reference for `src/` contribution rules in future `README.md` and `AGENTS.md` / `CLAUDE.md` artifacts.
 
@@ -23,7 +23,7 @@ biomass_delta = <process>_delta(state_arrays..., scalar_params..., dt)
 - `dt`: the engine's time step, in whatever units the project agrees on (typically days). Always the last positional argument. Always a `float`.
 - `biomass_delta`: the biomass change produced by this process over `dt`, same shape as the primary biomass input. The engine accumulates `biomass_delta` from every process into a shared delta layer and applies the sum at the end of the step (see criticism #1 in `../README.md`).
 
-Processes whose scientific formulation is naturally a differential equation (`dB/dt = f(B, ...)`, e.g. ATN) are addressed in §7.
+Processes whose scientific formulation is naturally a rate (`dB/dt = f(B, ...)`, e.g. ATN) still return a `biomass_delta`; see §7.
 
 ### 1.2 Dependency processes — return a shared intermediate quantity
 
@@ -307,30 +307,26 @@ def apply_atn(grid, env, dt):
 
 ATN does not recompute metabolism; it reads the shared layer. Dispersal does the same, which is the whole point of making metabolism a dependency process rather than a private helper inside `atn.py`.
 
-## 7. ODE-style processes (ATN and others)
+## 7. Processes naturally formulated as a rate
 
-Some processes are naturally written as ordinary differential equations: their published formulation is a rate `dB/dt = f(B, ...)`, not a per-step delta. ATN on the `patn` branch is the current example; future hydrodynamics, soil dynamics, or temperature-driven processes may also arrive in this form. The engine still only accepts a delta per time step (§1), so the contributor must choose how to bridge from the rate to a delta. There are two acceptable options, and the choice is made by the process's contributor:
+Some processes have a published formulation as a rate, `dB/dt = f(B, ...)`, rather than as a per-step change. ATN is the current example. The contract does not change: the function the adapter calls must return a `biomass_delta` for one engine step. The engine assumes discrete time with a constant `dt`, and converting the rate into a delta is part of the process implementation.
 
-### Option A — Integrate the rate inside the adapter
+The science module is free to keep the rate as a helper function and have the delta function call it:
 
-The science module exposes a function returning `dB/dt`, written under the same shape and typing conventions as any other science function (§2, §3). The adapter is the only place that calls an integrator to advance the state by `dt`. Two integrators are reasonable to use:
+```python
+# src/gem/atn.py
+def atn_rate(biomass, ..., scalar_params):
+    """dB/dt for the ATN formulation. Same shape and typing rules as §3."""
+    ...
 
-- `scipy.integrate.solve_ivp` (or the legacy `scipy.integrate.odeint`) with a Runge-Kutta method (`RK45`, `RK23`) when the contributor wants adaptive substep control and tolerance-based error handling. This was ATN's original choice on the `patn` branch.
-- A small project-local vectorised RK4 step, when the contributor wants fixed-substep integration that vectorises cleanly over the full `(X, Y, S)` grid (typically faster than per-cell `scipy` calls at global scale).
+def atn_delta(biomass, ..., scalar_params, dt):
+    """Biomass change over one engine step of length dt. May call atn_rate internally."""
+    ...
+```
 
-If multiple ODE-style processes end up sharing the same fixed-step integrator, a small `numerics.py` module added next to the engine is the natural home for it (e.g. an `rk4_step(derivative_fn, state, dt, n_substeps)` helper). This module is **not part of the standard package layout** in §4; it is added only when a second ODE-style process arrives and reuses the integrator. The first ODE process can implement its integrator privately inside its adapter and only extract it once a second user appears.
+The adapter calls `atn_delta` and accumulates the result through `grid.add_delta(...)` exactly like any other biomass-modifying process (§5.2). How `atn_delta` turns the rate into a delta — a single forward step, several substeps, or something more elaborate — is an implementation detail of the science module, exercised by the unit test (§5.3). Keep the math inside the science file; the adapter should not contain numerical logic.
 
-Whichever integrator is used, the integration scheme and any substep count are written explicitly in the adapter, in the same file as every other adapter (`processes.py`). A reader sees both the science (a rate function in `<process>.py`) and the numerical choice (the integrator call in `processes.py`) without having to look into framework code.
-
-### Option B — Rewrite the science to return a delta directly
-
-The contributor restates the equations in discrete-time form: the science function returns `biomass_delta` directly, with `dt` baked into the math (e.g. a forward Euler step `delta = dt * f(state)`, or a higher-order discrete scheme). The adapter then has no integration step at all, and the process looks structurally identical to a non-ODE process (§5).
-
-This option is appropriate when the discrete approximation is accurate enough at the engine's `dt`, when the contributor wants the simplest possible code path, or when the underlying dynamics are not stiff enough to need adaptive control.
-
-### Choosing between A and B
-
-The trade-offs are documented in [`../discretization.md`](../discretization.md). In short: Option A preserves the published continuous-time fidelity at a small implementation cost; Option B is simpler but requires the contributor to verify that the chosen `dt` (and any internal subcycling) keeps the dynamics accurate. Either way, an ODE-style process should validate its new path against a reference implementation (e.g. `scipy.integrate.solve_ivp` on a small grid) at least once before being trusted in production runs.
+The contributor is responsible for checking that the delta is accurate enough at the engine's `dt`. The reference for that check is the published formulation of the process, not the engine.
 
 ## 8. Summary checklist for a new process contribution
 
@@ -341,5 +337,5 @@ The trade-offs are documented in [`../discretization.md`](../discretization.md).
 - [ ] Add the runtime shape `assert` at the top of the function.
 - [ ] Add `apply_<process>(grid, env, dt)` in `processes.py`. This is where slicing, parameter fetching, and (if applicable) ODE integration live. Biomass-modifying adapters write to the shared delta layer; dependency adapters write to a named shared layer.
 - [ ] Add a unit test in `tests/test_<process>.py` using hand-built arrays — no engine instance.
-- [ ] If the science is ODE-style, choose Option A or B from §7, document the choice in the adapter, and validate against a reference integration on a small grid.
+- [ ] If the process is naturally a rate, write `<process>_delta` to return the per-step change; the rate function can live alongside it in the same science module as a helper (§7).
 - [ ] Register the adapter with the engine in the pipeline definition, with dependency adapters scheduled before any consumer.

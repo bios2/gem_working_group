@@ -54,9 +54,9 @@ Before answering, check whether the answer is already written down. Do not dupli
 | Topic | File |
 |---|---|
 | Repo layout, environment, conventions, engine overview | [README.md](README.md) |
-| Process contract: signatures, shape rules, module layout, ODE handling | [docs/processes_implementation_specification.md](docs/processes_implementation_specification.md) |
+| Process contract: signatures, shape rules, module layout, rate-formulated processes | [docs/processes_implementation_specification.md](docs/processes_implementation_specification.md) |
 | Engine design rationale, "cart" analogy, design criticisms | [experiments/tuesday_architecture_proposal/README.md](experiments/tuesday_architecture_proposal/README.md) |
-| Discrete-vs-ODE trade-off and decision | [experiments/tuesday_architecture_proposal/discretization.md](experiments/tuesday_architecture_proposal/discretization.md) |
+| Why the engine asks for discrete biomass deltas | [experiments/tuesday_architecture_proposal/why_discrete_deltas.md](experiments/tuesday_architecture_proposal/why_discrete_deltas.md) |
 | Per-process synthesis (ATN, vegetation, dispersal) | [experiments/tuesday_architecture_proposal/context/](experiments/tuesday_architecture_proposal/context/) |
 | Reference engine prototype | [experiments/tuesday_architecture_proposal/engine_v2/](experiments/tuesday_architecture_proposal/engine_v2/) |
 | Active experiments | [experiments/](experiments/) — one subfolder per experiment |
@@ -80,8 +80,6 @@ Coding defaults:
 - **Explain a Python idiom the first time it appears** in the participant's code — `NDArray[np.float64]`, `*` unpacking, `assert`, keyword-only arguments. One sentence each.
 - **Docstring shape language must match what the function enforces.** If the assert checks equal shapes, the docstring says *"same shape"*, not *"must broadcast"* — broadcasting is the adapter's job, not the science function's. See [processes spec §3 rule 6](docs/processes_implementation_specification.md). When reviewing a docstring written by a participant, also watch for: redundancy between the prose intro and the shape list, the phrase "constant scalar" applied to inputs the assert will read `.shape` on, and ambiguous use of `(S,)` (it is *one location with S species*, not *one species across a row*).
 - **No silent fallbacks.** Validate inputs at the science function's entry (the `assert`) and let it raise. Do not paper over wrong shapes with `np.broadcast_to` inside the science function.
-
-When the participant brings ODE code (e.g. from the `patn` branch), do not silently convert it. Walk them through the **Option A vs Option B** choice in [docs/processes_implementation_specification.md §7](docs/processes_implementation_specification.md) and let them decide.
 
 ## 6. Helping with experiments
 
