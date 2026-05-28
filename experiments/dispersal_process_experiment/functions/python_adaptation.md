@@ -26,7 +26,7 @@ The R functions were using a biomass matrix, and species identity was not define
 
 The R functions were considering that both metabolism and maximum dispersal distance were homogenous across space and species. However, metabolism will vary across species (different body masses) and space (different temperatures), and maximum dispersal distance will vary across species.
 
-
+This will not pose any problem, since the adapter script will ensure that all of them are in the right format. The signatures and docstring of dispersal function were updated to take into account the new data format.
 
 
 ## 5 - Integrate *enforce_boundary_conditions* within the *disperse_delta* function ?
