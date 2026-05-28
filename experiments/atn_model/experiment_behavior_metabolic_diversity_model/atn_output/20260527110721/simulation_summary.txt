@@ -1,0 +1,61 @@
+METABOLIC-DIVERSITY ATN SIMULATION
+============================================================
+
+Number of species: 3
+Number of cells: 2
+Duration: 30.0 days
+Metabolism model: thermal_group
+
+Traits
+------------------------------------------------------------
+species_id,body_mass_g,is_basal,initial_biomass_g_per_m2,thermal_group,endotherm_group
+0,1.0,1,8.0,atn,
+1,100.0,0,0.5,endotherm,mammal
+2,0.1,0,0.4,ectotherm,
+
+Environment
+------------------------------------------------------------
+pixel_id,x,y,temperature_K,K_plant_0
+0,0,0,293.15,100
+1,1,0,303.15,100
+
+Adjacency matrix, rows=resources, columns=consumers
+------------------------------------------------------------
+0 1 1
+0 0 0
+0 0 0
+
+Config
+------------------------------------------------------------
+r0: 0.5
+b_r: -0.25
+X0: 0.5
+b_X: -0.25
+a0: 0.001
+b_a_prey: -0.5
+b_a_pred: 0.5
+h0: 0.01
+b_h_prey: 0.5
+b_h_pred: -0.5
+q_hill: 2.0
+interference: 0.0
+R_opt: 100.0
+gamma: 2.0
+link_threshold: 0.01
+e_plant: 0.45
+e_animal: 0.85
+K_default: 100.0
+use_temperature: True
+T0_K: 293.15
+k_B: 8.617e-05
+E_a: 0.65
+metabolism_model: thermal_group
+apply_thermal_metabolism_to_basal: False
+default_consumer_thermal_group: ectotherm
+default_endotherm_group: mammal
+field_metabolic_multiplier: 3.0
+joules_per_g_wet_biomass: 7000.0
+seconds_per_day: 86400.0
+metabolic_rate_multiplier: 1.0
+ext_threshold: 1e-06
+extinction_timescale: 0.1

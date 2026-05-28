@@ -1,0 +1,4 @@
+species_id,body_mass_g,is_basal,initial_biomass_g_per_m2,thermal_group,endotherm_group
+0,1.0,1,8.0,atn,
+1,100.0,0,0.5,endotherm,mammal
+2,0.1,0,0.4,ectotherm,

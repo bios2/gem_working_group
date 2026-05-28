@@ -21,6 +21,7 @@ experiments/sunday_vegetation_experiments_design/context/MadingleyR/
 # Python cache
 __pycache__/
 *.pyc
+gem.egg-info/
 
 # Agent-specific local settings
 .claude/settings.json
